@@ -1,0 +1,47 @@
+Metadata-Version: 2.4
+Name: ct-scraper-service
+Version: 0.1.0
+Summary: Cloud service for CT court lead scraping and email digests
+Author: Collin
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi
+Requires-Dist: uvicorn[standard]
+Requires-Dist: celery
+Requires-Dist: redis
+Requires-Dist: jinja2
+Requires-Dist: python-dotenv
+Requires-Dist: stripe
+Requires-Dist: requests
+Requires-Dist: selenium
+Requires-Dist: chromedriver-autoinstaller
+Requires-Dist: pydantic[email]
+Requires-Dist: sqlalchemy
+Requires-Dist: alembic
+Requires-Dist: passlib[bcrypt]
+Requires-Dist: typer
+Requires-Dist: tenacity
+Provides-Extra: email
+Requires-Dist: boto3; extra == "email"
+
+# CT Scraper Service
+
+Minimal cloud-friendly packaging of the Connecticut civil case scraper so it can run scheduled jobs and email daily digests to subscribers. This folder is independent of the local research scripts.
+
+## Components
+- `ct_scraper/` - reusable scraping, data, API, and email helpers
+- `scripts/` - CLI entrypoints invoked by cron/systemd/Celery beat
+- `pyproject.toml` - Python project definition
+
+## Quickstart
+1. `python -m venv .venv && .venv\Scripts\Activate.ps1`
+2. `pip install -e .`
+3. Copy `.env.example` to `.env` and fill secrets.
+4. Run `python scripts/scrape_daily.py run --limit 1` to smoke-test scraping.
+5. Start the API locally with `uvicorn ct_scraper.api.app:app --reload` and visit `http://127.0.0.1:8000/docs`.
+
+## Deployment Notes
+- Target a $4/mo DigitalOcean droplet with Docker or systemd timers.
+- Schedule `scrape_daily.py` around 3:30 pm ET and `send_digest.py` at 4 pm.
+- Use Amazon SES or Mailgun free tier for outbound email; swap provider by implementing the email backend in `ct_scraper/emailer.py`.
+- Keep SQLite for ultra-low cost; upgrade to managed Postgres once user count grows.

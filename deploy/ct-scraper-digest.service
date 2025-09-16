@@ -1,0 +1,12 @@
+[Unit]
+Description=Send CT leads digest email
+After=network.target ct-scraper-api.service
+
+[Service]
+Type=oneshot
+User=scraper
+Group=scraper
+WorkingDirectory=/home/scraper/apps/ct-scraper-service
+Environment="PATH=/home/scraper/apps/ct-scraper-service/.venv/bin"
+EnvironmentFile=/home/scraper/apps/ct-scraper-service/.env
+ExecStart=/home/scraper/apps/ct-scraper-service/.venv/bin/python scripts/send_digest.py run

@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily CT scraper run at 19:30 UTC (3:30pm ET)
+
+[Timer]
+OnCalendar=*-*-* 19:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

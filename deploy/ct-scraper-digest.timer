@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily CT digest email at 20:00 UTC (4:00pm ET)
+
+[Timer]
+OnCalendar=*-*-* 20:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

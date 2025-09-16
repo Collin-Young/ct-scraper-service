@@ -1,0 +1,25 @@
+# CT Scraper Service
+
+Minimal cloud-friendly packaging of the Connecticut civil case scraper so it can run scheduled jobs and email daily digests to subscribers. This folder is independent of the local research scripts.
+
+## Components
+- `ct_scraper/` - reusable scraping, data, API, and email helpers
+- `scripts/` - CLI entrypoints invoked by cron/systemd/Celery beat
+- `frontend/` - static HTML/JS client (table + interactive map) for browsing scraped cases
+- `deploy/` - DigitalOcean deployment templates (systemd units, step-by-step guide)
+- `pyproject.toml` - Python project definition
+
+## Quickstart
+1. `python -m venv .venv && .venv\Scripts\Activate.ps1`
+2. `pip install -e .`
+3. Copy `.env.example` to `.env` and fill secrets.
+4. Run `python scripts/scrape_daily.py run --limit 1` to smoke-test scraping.
+5. Start the API locally with `uvicorn ct_scraper.api.app:app --reload` and visit `http://127.0.0.1:8000/docs`.
+
+## Deployment Notes
+- For a droplet walkthrough (installing Python, Chromium, timers, etc.) see `deploy/DO_DEPLOY.md`.
+- Provided systemd unit & timer templates can be copied to `/etc/systemd/system/` to host the API and schedule the daily scrape/digest jobs.
+- Use Amazon SES or Mailgun free tier for outbound email; swap provider by implementing the email backend in `ct_scraper/emailer.py`.
+- Keep SQLite for ultra-low cost; upgrade to managed Postgres once user count grows.
+
+\n### Geocoding\n- python scripts/backfill_geocode.py will look up missing coordinates (cached in ct_scraper/geocode_cache.json).\n- Expect the first run to take a while (~1s per new address due to Nominatim rate limits).\n

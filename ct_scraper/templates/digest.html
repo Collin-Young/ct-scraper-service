@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CT Leads Digest</title>
+  <style>
+    body { font-family: Arial, sans-serif; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { background: #f2f2f2; text-align: left; }
+  </style>
+</head>
+<body>
+  <p>Hi {{ subscriber.email }},</p>
+  <p>Here are the latest Connecticut civil foreclosure leads gathered on {{ generated_at.strftime('%Y-%m-%d %H:%M') }} ET.</p>
+  {% if cases %}
+  <table>
+    <thead>
+      <tr>
+        <th>Docket</th>
+        <th>Town</th>
+        <th>Property</th>
+        <th>Case Type</th>
+        <th>Last Action</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for case in cases %}
+      <tr>
+        <td>{{ case.docket_no }}</td>
+        <td>{{ case.town }}</td>
+        <td>{{ case.property_address }}</td>
+        <td>{{ case.case_type }}</td>
+        <td>{{ case.last_action_date }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No new leads found since your last digest.</p>
+  {% endif %}
+  <p>Thanks,<br/>CT Scraper Bot</p>
+</body>
+</html>

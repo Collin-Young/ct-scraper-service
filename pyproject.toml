@@ -1,0 +1,37 @@
+[project]
+name = "ct-scraper-service"
+version = "0.1.0"
+description = "Cloud service for CT court lead scraping and email digests"
+authors = [{ name = "Collin" }]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "celery",
+    "redis",
+    "jinja2",
+    "python-dotenv",
+    "stripe",
+    "requests",
+    "selenium",
+    "chromedriver-autoinstaller",
+    "pydantic[email]",
+    "sqlalchemy",
+    "alembic",
+    "passlib[bcrypt]",
+    "typer",
+    "tenacity",
+    "geopy"
+]
+
+[project.optional-dependencies]
+email = ["boto3"]
+
+[build-system]
+requires = ["setuptools>=67", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ct_scraper*", "scripts*" ]

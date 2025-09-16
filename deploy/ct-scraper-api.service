@@ -1,0 +1,17 @@
+[Unit]
+Description=CT Scraper API
+After=network.target
+Wants=network-online.target
+
+[Service]
+User=scraper
+Group=scraper
+WorkingDirectory=/home/scraper/apps/ct-scraper-service
+Environment="PATH=/home/scraper/apps/ct-scraper-service/.venv/bin"
+EnvironmentFile=/home/scraper/apps/ct-scraper-service/.env
+ExecStart=/home/scraper/apps/ct-scraper-service/.venv/bin/uvicorn ct_scraper.api.app:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -11,18 +11,20 @@ import pathlib
 import traceback
 import random
 import logging
-from typing import List, Dict, Any
+import sys
+from typing import List, Dict, Any, Set
 
 # Database
 from sqlalchemy.orm import Session
-import sys
-import os
 
-# Add the parent directory to the path so we can import from ct_scraper
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from ct_scraper.database import get_session
-from ct_scraper.models import Case
+try:
+    # Add the parent directory to the path so we can import from ct_scraper
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    from ct_scraper.database import get_session
+    from ct_scraper.models import Case, Base
+except ImportError as e:
+    logging.critical(f"Import error: {e}. Make sure the ct_scraper module is in the parent directory.")
+    sys.exit(1)
 
 # Selenium
 from selenium import webdriver
@@ -53,7 +55,7 @@ SHOW_BROWSER = False
 STOP_AFTER_FIRST_MATCH = True
 
 # Paths (server-compatible)
-BASE_DIR = pathlib.Path("/home/scraper/apps/ct-scraper-service")
+BASE_DIR = pathlib.Path(__file__).resolve().parents[1]  # /home/scraper/apps/ct-scraper-service
 OUT_DIR = BASE_DIR / "downloads_ct_summons"
 PDF_NAME = "DocumentInquiry.pdf"
 DEBUG_DIR = OUT_DIR / "debug_parties_pages"
@@ -62,8 +64,11 @@ DEBUG_DIR = OUT_DIR / "debug_parties_pages"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 DEBUG_DIR.mkdir(parents=True, exist_ok=True)
 
-# Tesseract path (Linux)
-pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+# Tesseract path
+# On Linux, if tesseract is in the system's PATH (e.g., from `apt install tesseract-ocr`),
+# pytesseract can often find it automatically. Explicitly setting it can be a fallback.
+# The line below is commented out to encourage using the system PATH first.
+# pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 
 # The court site's PDF link xpath
 PDF_XPATH = '//*[@id="ctl00_ContentPlaceHolder1_CaseDetailDocuments1_gvDocuments_ctl02_hlnkDocument"]'
@@ -200,7 +205,7 @@ def find_and_save_parties_page(pdf_path: pathlib.Path, docket_no: str) -> bool:
 
 # ----------------------------- RESUME LOGIC ----------------------------------
 
-def already_processed_dockets() -> set[str]:
+def already_processed_dockets() -> Set[str]:
     """
     Look in DEBUG_DIR for existing outputs:
       - <DOCKET>_parties.png
@@ -253,25 +258,26 @@ def wait_for_download(pdf_path: pathlib.Path, timeout: int = DOWNLOAD_TIMEOUT_SE
 
 # -------------------------------- SCRAPER ------------------------------------
 
-def get_unprocessed_cases(session: Session, limit: int = DOWNLOAD_LIMIT) -> List[Dict[str, Any]]:
+def get_unprocessed_cases(session: Session, limit: int) -> List[Dict[str, Any]]:
     """Get cases that haven't been processed for PDF download yet."""
     processed_dockets = already_processed_dockets()
+    logger.info(f"Found {len(processed_dockets)} already processed dockets in output directory.")
 
-    # Get cases not in processed list
-    cases = session.query(Case).filter(
+    # Get cases from DB that are not in the processed list on disk
+    unprocessed_cases = session.query(Case).filter(
         ~Case.docket_no.in_(processed_dockets)
     ).limit(limit).all()
 
     return [
         {
             "docket_no": case.docket_no,
-            "url": f"https://civilinquiry.jud.ct.gov/CaseDetail.aspx?DocketNo={case.docket_no}"
+            "url": f"https://civilinquiry.jud.ct.gov/CaseDetail.aspx?DocketNo={case.docket_no}",
         }
-        for case in cases
+        for case in unprocessed_cases
     ]
 
 
-def run_pdf_downloader(limit: int = DOWNLOAD_LIMIT):
+def run_pdf_downloader(limit: int):
     """Main function to download PDFs and extract parties pages."""
 
     logger.info("Starting PDF downloader...")
@@ -283,7 +289,7 @@ def run_pdf_downloader(limit: int = DOWNLOAD_LIMIT):
         logger.info("No new cases to process for PDF download.")
         return
 
-    logger.info(f"Processing {len(cases_to_process)} cases for PDF download")
+    logger.info(f"Found {len(cases_to_process)} new cases to process for PDF download.")
 
     driver = chrome(OUT_DIR)
     wait = WebDriverWait(driver, 25)
@@ -296,7 +302,7 @@ def run_pdf_downloader(limit: int = DOWNLOAD_LIMIT):
         for i, case in enumerate(cases_to_process, 1):
             docket = case["docket_no"]
             url = case["url"]
-            logger.info(f"[{i}/{len(cases_to_process)}] Processing {docket}")
+            logger.info(f"[{i}/{len(cases_to_process)}] Processing {docket} at {url}")
 
             # Open case
             try:
@@ -309,11 +315,10 @@ def run_pdf_downloader(limit: int = DOWNLOAD_LIMIT):
             # Click PDF link
             try:
                 link = wait.until(EC.element_to_be_clickable((By.XPATH, PDF_XPATH)))
-                target = link.get_attribute("href")
-                logger.info(f"Found PDF link for {docket}: {target}")
+                logger.info(f"Found PDF link for {docket}, clicking...")
                 link.click()
             except Exception as e:
-                logger.error(f"Could not click document link for {docket}: {e}")
+                logger.warning(f"Could not click document link for {docket}. It may not have one. Error: {e}")
                 failures += 1
                 continue
 
@@ -327,11 +332,11 @@ def run_pdf_downloader(limit: int = DOWNLOAD_LIMIT):
 
             # Wait for download to finish
             if not wait_for_download(pdf_path, timeout=DOWNLOAD_TIMEOUT_SEC):
-                logger.error(f"PDF download timeout for {docket}")
+                logger.warning(f"PDF download timeout for {docket}")
                 failures += 1
                 continue
 
-            logger.info(f"Downloaded PDF for {docket}")
+            logger.info(f"Downloaded PDF for {docket} to {pdf_path}")
 
             # Find parties page
             try:
@@ -357,14 +362,17 @@ def run_pdf_downloader(limit: int = DOWNLOAD_LIMIT):
         logger.info(f"Outputs saved to: {DEBUG_DIR}")
 
 
+import typer
+
+app = typer.Typer(help="PDF Downloader for CT court case documents.")
+
+@app.command(name="run")
+def run_command(limit: int = typer.Option(DOWNLOAD_LIMIT, help="Limit number of cases to process per run.")):
+    """
+    Run the PDF downloader to find, download, and process PDFs for new cases.
+    """
+    run_pdf_downloader(limit)
+
+
 if __name__ == "__main__":
-    import typer
-
-    app = typer.Typer()
-
-    @app.command()
-    def run(limit: int = DOWNLOAD_LIMIT):
-        """Run the PDF downloader to process court case documents."""
-        run_pdf_downloader(limit)
-
     app()

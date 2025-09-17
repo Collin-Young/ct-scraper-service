@@ -364,10 +364,7 @@ def run_pdf_downloader(limit: int):
 
 import typer
 
-app = typer.Typer(help="PDF Downloader for CT court case documents.")
-
-@app.command(name="run")
-def run_command(limit: int = typer.Option(DOWNLOAD_LIMIT, help="Limit number of cases to process per run.")):
+def main(limit: int = typer.Option(DOWNLOAD_LIMIT, help="Limit number of cases to process per run.")):
     """
     Run the PDF downloader to find, download, and process PDFs for new cases.
     """
@@ -375,4 +372,4 @@ def run_command(limit: int = typer.Option(DOWNLOAD_LIMIT, help="Limit number of 
 
 
 if __name__ == "__main__":
-    app()
+    typer.run(main)

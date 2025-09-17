@@ -15,8 +15,14 @@ from typing import List, Dict, Any
 
 # Database
 from sqlalchemy.orm import Session
-from ..database import get_session
-from ..models import Case
+import sys
+import os
+
+# Add the parent directory to the path so we can import from ct_scraper
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from ct_scraper.database import get_session
+from ct_scraper.models import Case
 
 # Selenium
 from selenium import webdriver

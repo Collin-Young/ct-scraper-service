@@ -91,6 +91,9 @@ def chrome(download_dir: pathlib.Path) -> webdriver.Chrome:
     opts.add_argument("--window-size=1366,768")
     opts.add_argument("--disable-blink-features=AutomationControlled")
 
+    # For snap-installed Chrome on Ubuntu
+    opts.binary_location = '/snap/bin/google-chrome'
+
     prefs = {
         "download.default_directory": str(download_dir.resolve()),
         "download.prompt_for_download": False,
@@ -99,6 +102,7 @@ def chrome(download_dir: pathlib.Path) -> webdriver.Chrome:
     }
     opts.add_experimental_option("prefs", prefs)
     import subprocess
+    logger.info(f"Using Chrome binary: {opts.binary_location}")
     logger.info(f"Detected Chrome version: {subprocess.check_output(['google-chrome', '--version']).decode().strip()}")
     driver = webdriver.Chrome(options=opts)
     logger.info(f"Chrome started with browser version: {driver.capabilities['browserVersion']}")

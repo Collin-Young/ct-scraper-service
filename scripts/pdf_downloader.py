@@ -98,7 +98,11 @@ def chrome(download_dir: pathlib.Path) -> webdriver.Chrome:
         "plugins.always_open_pdf_externally": True,
     }
     opts.add_experimental_option("prefs", prefs)
+    import subprocess
+    logger.info(f"Detected Chrome version: {subprocess.check_output(['google-chrome', '--version']).decode().strip()}")
     driver = webdriver.Chrome(options=opts)
+    logger.info(f"Chrome started with browser version: {driver.capabilities['browserVersion']}")
+    logger.info(f"Chromedriver version: {driver.capabilities['chrome']['chromedriverVersion']}")
     driver.set_page_load_timeout(60)
     return driver
 

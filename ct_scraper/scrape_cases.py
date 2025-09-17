@@ -22,6 +22,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 BASE_URL = "https://civilinquiry.jud.ct.gov/PropertyAddressSearch.aspx"
 ROLE_RE = re.compile(r"^[PD]-\d{1,2}$", re.IGNORECASE)
 
+import re
+from .database import session_scope
+from .models import Case, Party
+
 
 def pause(a: float = 0.2, b: float = 0.6) -> None:
     time.sleep(random.uniform(a, b))
@@ -278,7 +282,7 @@ class CaseScraper:
                 docket_no = ""
         if docket_no:
             return (
-                f'=HYPERLINK("https://civilinquiry.jud.ct.gov/CaseDetail.aspx?DocketNo={docket_no}", '
+                f'=HYPERLINK("https://civilinquiry.jud.ct.gov/CaseDetail/PublicCaseDetail.aspx?DocketNo={docket_no}", '
                 f'"{docket_no}")'
             )
         return ""
@@ -286,13 +290,56 @@ class CaseScraper:
 
 import datetime
 def scrape_cases(towns: Iterable[str]) -> List[CaseRow]:
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"ct_cases_{timestamp}.csv"
     with CaseScraper(headless=True) as scraper:
         cases = list(scraper.scrape_towns(towns))
-        with open(filename, "w") as f:
-            f.write(str(cases)) # Simple output for testing
-        return cases
+
+    # Save to database
+    docket_re = re.compile(r'DocketNo=([^"&\s]+)')
+    with session_scope() as session:
+        for row in cases:
+            if not row.docket_link:
+                continue
+            match = docket_re.search(row.docket_link)
+            if not match:
+                continue
+            docket_no = match.group(1)
+
+            # Check if already exists
+            existing = session.query(Case).filter_by(docket_no=docket_no).first()
+            if existing:
+                continue
+
+            case = Case(
+                docket_no=docket_no,
+                town=row.town,
+                case_type=row.case_type,
+                court_location=row.court_location,
+                property_address=row.property_address,
+                list_type=row.list_type,
+                trial_list_claim=row.trial_list_claim,
+                last_action_date=row.last_action_date
+            )
+            session.add(case)
+
+            for p in row.parties:
+                party = Party(
+                    case=case,
+                    role=p["role"],
+                    name=p["name"],
+                    attorney=p["attorney"],
+                    attorney_address=p["address"],
+                    file_date=p["file_date"]
+                )
+                session.add(party)
+
+        session.commit()
+
+    # Also write to CSV for reference
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"ct_cases_{timestamp}.csv"
+    with open(filename, "w") as f:
+        f.write(str(cases))  # Simple output for testing
+    return cases
 
 
 

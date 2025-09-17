@@ -1,0 +1,23 @@
+[Unit]
+Description=CT Scraper PDF Downloader Service
+After=network.target
+Wants=ct-scraper-api.service
+
+[Service]
+Type=simple
+User=scraper
+Group=scraper
+WorkingDirectory=/home/scraper/apps/ct-scraper-service
+Environment=PATH=/home/scraper/apps/ct-scraper-service/.venv/bin
+ExecStart=/home/scraper/apps/ct-scraper-service/.venv/bin/python scripts/pdf_downloader.py run --limit 50
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Resource limits
+MemoryLimit=1G
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

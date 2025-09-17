@@ -111,6 +111,7 @@ class CaseScraper:
 
         for town in towns:
             driver.get(BASE_URL)
+            page = 1
             wait.until(EC.presence_of_element_located((By.ID, "ctl00_ContentPlaceHolder1_txtCityTown")))
             city = driver.find_element(By.ID, "ctl00_ContentPlaceHolder1_txtCityTown")
             city.clear()
@@ -134,17 +135,26 @@ class CaseScraper:
                         yield self._build_case_row(town)
                         pause()
 
-                next_candidates = driver.find_elements(
+                next_page_num = page + 1
+                next_link = driver.find_elements(
                     By.XPATH,
-                    "//a[contains(normalize-space(.), 'Next')]",
+                    f"//a[@href=\"javascript:__doPostBack('ctl00$ContentPlaceHolder1$gvPropertyResults','Page${next_page_num}')\"]",
                 )
-                if next_candidates:
+                if next_link:
                     marker = links[0] if links else driver.find_element(By.TAG_NAME, "body")
-                    next_candidates[0].click()
+                    next_link[0].click()
+                    try:
+                        wait.until(EC.presence_of_element_located((
+                            By.XPATH,
+                            f"//table[@id='ctl00_ContentPlaceHolder1_gvPropertyResults']//span[text()='{next_page_num}']"
+                        )))
+                    except Exception:
+                        pass
                     try:
                         wait.until(EC.staleness_of(marker))
                     except Exception:
                         pause(0.6, 1.0)
+                    page = next_page_num
                 else:
                     break
 
@@ -283,6 +293,8 @@ def scrape_cases(towns: Iterable[str]) -> List[CaseRow]:
         with open(filename, "w") as f:
             f.write(str(cases)) # Simple output for testing
         return cases
+
+
 
 
 

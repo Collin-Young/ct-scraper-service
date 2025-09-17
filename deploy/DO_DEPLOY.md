@@ -11,7 +11,7 @@ These steps get the scraper API and daily jobs running on a cheap ($4/mo) Ubuntu
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y python3.11 python3.11-venv python3.11-dev build-essential git unzip \
-    chromium-browser chromium-chromedriver xvfb
+    chromium-browser chromium-chromedriver xvfb tesseract-ocr
 ```
 Chromium + chromedriver allow Selenium to run headless; `xvfb` provides a virtual display in case the site refuses pure headless.
 
@@ -69,9 +69,10 @@ sudo systemctl status ct-scraper-api.service
 The API will be available on `http://droplet_ip:8000`. Put an Nginx reverse proxy + HTTPS in front if you need TLS (DigitalOcean Marketplace �Nginx� image can help).
 
 ## 7. Schedule daily scrape & digest
-Two timers are provided:
+Three timers are provided:
 - `ct-scraper-scrape.timer` runs the scraper daily at 19:30 UTC (3:30 pm ET).
 - `ct-scraper-digest.timer` runs the email digest daily at 20:00 UTC (4:00 pm ET).
+- `ct-scraper-pdf.timer` runs the PDF downloader daily at 21:00 UTC (5:00 pm ET).
 
 Install them:
 ```bash
@@ -79,10 +80,13 @@ sudo cp /home/scraper/apps/ct-scraper-service/deploy/ct-scraper-scrape.service /
 sudo cp /home/scraper/apps/ct-scraper-service/deploy/ct-scraper-scrape.timer /etc/systemd/system/
 sudo cp /home/scraper/apps/ct-scraper-service/deploy/ct-scraper-digest.service /etc/systemd/system/
 sudo cp /home/scraper/apps/ct-scraper-service/deploy/ct-scraper-digest.timer /etc/systemd/system/
+sudo cp /home/scraper/apps/ct-scraper-service/deploy/ct-scraper-pdf.service /etc/systemd/system/
+sudo cp /home/scraper/apps/ct-scraper-service/deploy/ct-scraper-pdf.timer /etc/systemd/system/
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now ct-scraper-scrape.timer
 sudo systemctl enable --now ct-scraper-digest.timer
+sudo systemctl enable --now ct-scraper-pdf.timer
 ```
 Check upcoming runs:
 ```bash

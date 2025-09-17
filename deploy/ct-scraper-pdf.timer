@@ -1,0 +1,11 @@
+[Unit]
+Description=Run CT Scraper PDF Downloader Daily
+Requires=ct-scraper-pdf.service
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+Unit=ct-scraper-pdf.service
+
+[Install]
+WantedBy=timers.target

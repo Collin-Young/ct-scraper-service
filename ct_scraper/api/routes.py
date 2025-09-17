@@ -26,6 +26,10 @@ def list_cases(
     limit: int = Query(100, ge=1, le=1000),
     since_hours: Optional[int] = Query(None, ge=1, le=720),
     search: Optional[str] = Query(None, min_length=1, max_length=120),
+    county: Optional[str] = Query(None, min_length=1, max_length=50),
+    town: Optional[str] = Query(None, min_length=1, max_length=80),
+    date_from: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    date_to: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     session: Session = Depends(get_session),
 ):
     stmt = select(Case).options(selectinload(Case.parties)).order_by(Case.created_at.desc())
@@ -43,6 +47,31 @@ def list_cases(
                 Case.property_address.ilike(pattern),
             )
         )
+
+    if county:
+        # Filter by county using the TOWN_TO_COUNTY mapping
+        towns_in_county = [town for town, c in TOWN_TO_COUNTY.items() if c == county]
+        if towns_in_county:
+            stmt = stmt.where(Case.town.in_(towns_in_county))
+
+    if town:
+        stmt = stmt.where(Case.town == town.strip())
+
+    if date_from:
+        try:
+            from_date = dt.datetime.strptime(date_from, "%Y-%m-%d").date()
+            stmt = stmt.where(Case.created_at >= from_date)
+        except ValueError:
+            pass  # Invalid date format, ignore
+
+    if date_to:
+        try:
+            to_date = dt.datetime.strptime(date_to, "%Y-%m-%d").date()
+            # Add one day to include the entire end date
+            to_date_next = to_date + dt.timedelta(days=1)
+            stmt = stmt.where(Case.created_at < to_date_next)
+        except ValueError:
+            pass  # Invalid date format, ignore
 
     stmt = stmt.limit(limit)
     cases = session.scalars(stmt).all()

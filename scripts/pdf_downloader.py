@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 try:
     # Add the parent directory to the path so we can import from ct_scraper
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-    from ct_scraper.database import get_session
+    from ct_scraper.database import session_scope
     from ct_scraper.models import Case, Base
 except ImportError as e:
     logging.critical(f"Import error: {e}. Make sure the ct_scraper module is in the parent directory.")
@@ -282,7 +282,7 @@ def run_pdf_downloader(limit: int):
 
     logger.info("Starting PDF downloader...")
 
-    with get_session() as session:
+    with session_scope() as session:
         cases_to_process = get_unprocessed_cases(session, limit)
 
     if not cases_to_process:

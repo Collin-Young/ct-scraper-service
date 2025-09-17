@@ -9,7 +9,7 @@ import shutil
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Dict, Iterable, Iterator, List, Optional
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, quote_plus
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -277,16 +277,16 @@ class CaseScraper:
         if not docket_no:
             try:
                 qs = parse_qs(urlparse(driver.current_url).query)
-                docket_no = qs.get("DocketNo", [""])[0]
+                docket_no = qs.get("DocketNo", [""])[0].strip()
             except Exception:
                 docket_no = ""
         if docket_no:
-            return (
-                f'=HYPERLINK("https://civilinquiry.jud.ct.gov/CaseDetail/PublicCaseDetail.aspx?DocketNo={docket_no}", '
-                f'"{docket_no}")'
-            )
+            encoded = quote_plus(docket_no)
+            return f"https://civilinquiry.jud.ct.gov/CaseDetail/PublicCaseDetail.aspx?DocketNo={encoded}"
+        current_url = driver.current_url
+        if current_url:
+            return current_url
         return ""
-
 
 import datetime
 def scrape_cases(towns: Iterable[str]) -> List[CaseRow]:
@@ -340,12 +340,4 @@ def scrape_cases(towns: Iterable[str]) -> List[CaseRow]:
     with open(filename, "w") as f:
         f.write(str(cases))  # Simple output for testing
     return cases
-
-
-
-
-
-
-
-
 

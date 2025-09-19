@@ -1,107 +1,12 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CT Foreclosure Leads</title>
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
-      
-      crossorigin=""
-    />
-    <link rel="stylesheet" href="styles.css" />
+    <title>GeoLeads CT Foreclosure Leads</title>
   </head>
-  <body>
-    <header class="topbar">
-      <div class="wrap">
-        <h1>CT Foreclosure Leads</h1>
-        <div class="actions">
-          <label>
-            API Base URL
-            <input type="url" id="api-base" placeholder="https://geoleads.land/api" />
-          </label>
-          <button id="refresh">Refresh</button>
-        </div>
-      </div>
-    </header>
-
-    <main class="wrap">
-      <section class="filters">
-        <div class="filter-row">
-          <label>
-            County:
-            <select id="county-filter">
-              <option value="">All Counties</option>
-              <option value="Fairfield">Fairfield</option>
-              <option value="Hartford">Hartford</option>
-              <option value="Litchfield">Litchfield</option>
-              <option value="Middlesex">Middlesex</option>
-              <option value="New Haven">New Haven</option>
-              <option value="New London">New London</option>
-              <option value="Tolland">Tolland</option>
-              <option value="Windham">Windham</option>
-            </select>
-          </label>
-
-          <label>
-            Town:
-            <select id="town-filter">
-              <option value="">All Towns</option>
-              <!-- Towns will be populated by JavaScript -->
-            </select>
-          </label>
-
-          <label>
-            From Date:
-            <input type="date" id="date-from" />
-          </label>
-
-          <label>
-            To Date:
-            <input type="date" id="date-to" />
-          </label>
-
-          <button id="apply-filters">Apply Filters</button>
-          <button id="clear-filters">Clear</button>
-        </div>
-      </section>
-
-      <section class="map-wrapper">
-        <div id="map"></div>
-      </section>
-
-      <section id="status" class="status">Loading...</section>
-
-      <section class="table-wrapper">
-        <table id="cases-table">
-          <thead>
-            <tr>
-              <th>Docket</th>
-              <th>Town</th>
-              <th>County</th>
-              <th>Property</th>
-              <th>Case Type</th>
-              <th>Last Action</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody id="cases-body"></tbody>
-        </table>
-      </section>
-    </main>
-
-    <footer class="wrap footer">
-      <small>Data courtesy of CT Scraper Service &middot; <span id="last-updated">&nbsp;</span></small>
-    </footer>
-
-    <script
-      src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
-      
-      crossorigin=""
-    ></script>
-    <script src="app.js" type="module"></script>
+  <body class="bg-background text-foreground">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-
-

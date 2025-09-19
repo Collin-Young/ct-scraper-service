@@ -1,4 +1,4 @@
-"""Data pipeline utilities for storing cases and preparing digests."""
+﻿"""Data pipeline utilities for storing cases and preparing digests."""
 from __future__ import annotations
 
 import datetime as dt
@@ -36,6 +36,8 @@ def init_db() -> None:
                 conn.execute("ALTER TABLE cases ADD COLUMN latitude REAL")
             if "longitude" not in columns:
                 conn.execute("ALTER TABLE cases ADD COLUMN longitude REAL")
+            if "defendants_json" not in columns:
+                conn.execute("ALTER TABLE cases ADD COLUMN defendants_json TEXT")
 
 
 def save_cases(rows: Iterable[CaseRow]) -> int:

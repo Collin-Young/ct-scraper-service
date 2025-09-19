@@ -236,7 +236,7 @@ class CaseScraper:
                     "name": second,
                     "attorney": "",
                     "address": "",
-                    "file_date": third,
+                    "file_date": "",
                 }
             elif current:
                 if first.lower().startswith("attorney"):
@@ -324,10 +324,11 @@ def scrape_cases(towns: Iterable[str]) -> List[CaseRow]:
             for p in row.parties:
                 party = Party(
                     case=case,
+                    docket_no=case.docket_no,
                     role=p["role"],
                     name=p["name"],
                     attorney=p["attorney"],
-                    attorney_address=p["address"],
+                    mailing_address=p["address"],
                     file_date=p["file_date"]
                 )
                 session.add(party)

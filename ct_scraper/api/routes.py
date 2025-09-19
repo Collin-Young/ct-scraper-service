@@ -5,6 +5,7 @@ import datetime as dt
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from urllib.parse import quote_plus
 from sqlalchemy import select, or_
 from sqlalchemy.orm import Session, selectinload
 
@@ -79,7 +80,7 @@ def list_cases(
     return [
         schemas.CaseOut(
             docket_no=case.docket_no,
-            case_url=f"https://civilinquiry.jud.ct.gov/CaseDetail.aspx?DocketNo={case.docket_no}",
+            case_url=f"https://civilinquiry.jud.ct.gov/CaseDetail/PublicCaseDetail.aspx?DocketNo={quote_plus(case.docket_no.strip())}",
             town=case.town,
             county=TOWN_TO_COUNTY.get(case.town, ""),
             case_type=case.case_type,

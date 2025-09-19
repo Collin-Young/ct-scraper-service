@@ -1,25 +1,41 @@
-# Frontend (Static)
+# GeoLeads Frontend (React + Shadcn UI)
 
-Minimal static UI that hits the FastAPI service for case data.
+Modernized UI built with Vite, React, Tailwind, and Shadcn components. The previous static implementation remains in `../frontend-legacy` for reference and staging.
 
-## Quick start
-1. `cd frontend`
-2. Serve the directory with any static server (examples below).
+## Prerequisites
+- Node.js 18+
+- npm, pnpm, or yarn
 
-### Python (3.x)
-```
-python -m http.server 5173
-# then open http://localhost:5173
-```
-
-### Node (if installed)
-```
-npx serve .
+## Getting Started
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-Once loaded, paste the API base URL (e.g. `http://157.230.11.23:8000`) and click **Refresh**.
+Visit `http://localhost:5173`, set the API base URL (defaults to `https://geoleads.land/api` when hosted), and click **Refresh** to load cases.
 
-## Notes
-- All filtering happens client side; the page fetches up to 250 rows via `GET /cases`.
-- Toggle “Show last 24 hours only” to add the `since_hours=24` query.
-- Update styling or add routing as needed; this is plain HTML/CSS/JS so it can later be replaced by React or another framework.
+## Building for Production
+```bash
+npm run build
+npm run preview
+```
+
+Deploy the generated `dist/` folder to static hosting or your existing deployment pipeline.
+
+---
+Need to roll back? Serve `frontend-legacy` exactly as before.
+
+### API base configuration
+
+By default the app assumes `https://geoleads.land/api`. To point at a different backend during development, create a `.env` file in this directory and set `VITE_DEFAULT_API_BASE`:
+
+```
+VITE_DEFAULT_API_BASE=http://localhost:8000/api
+```
+
+Restart `npm run dev` so Vite picks up the change, or just paste the URL in the UI field.
+
+### Animate background
+
+The landing shell now renders an animated dot grid powered by GSAP. `npm install` already pulls the dependency, but if you prune packages keep `gsap` so the effect keeps running.

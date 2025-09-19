@@ -1,0 +1,41 @@
+docket,extracted_name,extracted_address,status,matched_party_name,previous_address,stored_address
+AANCV156018160S,Michael P. Healey,"236 Broadway, Milford, CT 06460",extracted,,,
+AANCV156018160S,"Webster Bank, N.A.","145 Bank Street, Webster Plaza, Waterbury, CT 06702",extracted,,,
+AANCV156018160S,Chase American Mortgage Company,"c/o agent: Lorie A. Le Clair, 200 Boston Post Road, Orange, CT 06477",extracted,,,
+AANCV156018160S,Gary J. DeFilippo,"43 Perch Road, Shelton, CT 06484",extracted,,,
+AANCV156019457S,Mario Argentino,"17 Haystack Road, West Haven, CT 06516",extracted,,,
+AANCV156019457S,Secretary of Housing and Development,"1000 Lafayette Blvd, Bridgeport, CT 06604; 950 Pennsylvania Ave, NW, Washington, DC 20530; 451 7th St., SW, Washington, DC 20410",extracted,,,
+FBTCV256144660S,"Mladina, Jakov","120 Bick Terrace, Bridgeport, CT 06604",extracted,,,
+FBTCV256144660S,"JPMorgan Chase Bank, N.A.","1111 Polaris Parkway, Columbus, OH 43240
+c/o Secretary, 1111 Polaris Parkway, Columbus, OH 43240",extracted,,,
+FBTCV256144890S,"Simon, Kim","126-128 Vine St, Bridgeport, CT 06604-3000",extracted,,,
+FBTCV256144890S,Secretary of Housing and Urban Development,"c/o United States Attorney General, 950 Pennsylvania Avenue NW, Washington, DC 20530
+c/o United States Attorney General, 450 Main Street, Hartford, CT 06103
+451 7th Street SW, Washington, DC 20410",extracted,,,
+FBTCV256144890S,James Wheeler,"2 chinook Court, Palm Coast, FL 32137
+c/o Secretary of State, 165 Capitol Avenue, 2nd Floor, Hartford, CT 06106",extracted,,,
+FBTCV256144890S,State of Connecticut Department of Revenue Services,"c/o Attorney General William Tong, 165 Capitol Avenue, 5th Floor, Hartford, CT 06106
+c/o Secretary, 450 Columbus Boulevard, Suite 1, Hartford, CT 06103",extracted,,,
+FBTCV256150220S,"ELAM, ELEANOR","176 Lawrence Street, Bridgeport, CT 06604",extracted,,,
+FBTCV256150220S,DEPARTMENT OF THE TREASURY - INTERNAL REVENUE SERVICE,"c/o US Attorney, 157 Church Street, New Haven, CT 06510",extracted,,,
+FBTCV256150220S,ADVANCE RADIOLOGY CONSULTANTS,"c/o Updike, Kelly & Spellacy PC, 225 Asylum Street, 20th Floor, Hartford, CT 06103",extracted,,,
+AANCV156018160S,Michael P. Healey,"236 Broadway, Milford, CT 06460",extracted,,,
+AANCV156018160S,"Webster Bank, N.A.","145 Bank Street, Webster Plaza, Waterbury, CT 06702",extracted,,,
+AANCV156018160S,Chase American Mortgage Company,"c/o agent: Lorie A. Le Clair, 200 Boston Post Road, Orange, CT 06477",extracted,,,
+AANCV156018160S,Gary J. DeFilippo,"43 Perch Road, Shelton, CT 06484",extracted,,,
+AANCV156019457S,Mario Argentino,"17 Haystack Road, West Haven, CT 06516",extracted,,,
+AANCV156019457S,Secretary of Housing and Development,"1000 Lafayette Blvd, Bridgeport, CT 06604; 950 Pennsylvania Ave, NW, Washington, DC 20530; 451 7th St., SW, Washington, DC 20410",extracted,,,
+FBTCV256144660S,"Mladina, Jakov","120 Bick Terrace, Bridgeport, CT 06604",extracted,,,
+FBTCV256144660S,"JPMorgan Chase Bank, N.A.","1111 Polaris Parkway, Columbus, OH 43240
+c/o Secretary, 1111 Polaris Parkway, Columbus, OH 43240",extracted,,,
+FBTCV256144890S,"Simon, Kim","126-128 Vine St, Bridgeport, CT 06604-3000",extracted,,,
+FBTCV256144890S,Secretary of Housing and Urban Development,"c/o United States Attorney General, 950 Pennsylvania Avenue NW, Washington, DC 20530
+c/o United States Attorney General, 450 Main Street, Hartford, CT 06103
+451 7th Street SW, Washington, DC 20410",extracted,,,
+FBTCV256144890S,James Wheeler,"2 chinook Court, Palm Coast, FL 32137
+c/o Secretary of State, 165 Capitol Avenue, 2nd Floor, Hartford, CT 06106",extracted,,,
+FBTCV256144890S,State of Connecticut Department of Revenue Services,"c/o Attorney General William Tong, 165 Capitol Avenue, 5th Floor, Hartford, CT 06106
+c/o Secretary, 450 Columbus Boulevard, Suite 1, Hartford, CT 06103",extracted,,,
+FBTCV256150220S,"ELAM, ELEANOR","176 Lawrence Street, Bridgeport, CT 06604",extracted,,,
+FBTCV256150220S,DEPARTMENT OF THE TREASURY - INTERNAL REVENUE SERVICE,"c/o US Attorney, 157 Church Street, New Haven, CT 06510",extracted,,,
+FBTCV256150220S,ADVANCE RADIOLOGY CONSULTANTS,"c/o Updike, Kelly & Spellacy PC, 225 Asylum Street, 20th Floor, Hartford, CT 06103",extracted,,,

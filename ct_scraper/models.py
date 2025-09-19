@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import List
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
 
 Base = declarative_base()
@@ -24,6 +24,7 @@ class Case(Base):
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    defendants_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     parties: Mapped[List["Party"]] = relationship("Party", back_populates="case", cascade="all, delete-orphan")
 
@@ -32,10 +33,11 @@ class Party(Base):
     __tablename__ = "parties"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"))
+    docket_no: Mapped[str] = mapped_column(String(64), index=True)
     role: Mapped[str] = mapped_column(String(16))
     name: Mapped[str] = mapped_column(String(255))
-    attorney: Mapped[str] = mapped_column(String(255))
-    attorney_address: Mapped[str] = mapped_column(String(255))
+    attorney: Mapped[str] = mapped_column(String(255), default="")
+    mailing_address: Mapped[str] = mapped_column("attorney_address", String(255))
     file_date: Mapped[str] = mapped_column(String(40))
 
     case: Mapped[Case] = relationship("Case", back_populates="parties")

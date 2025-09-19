@@ -2,8 +2,10 @@ README.md
 pyproject.toml
 ct_scraper/__init__.py
 ct_scraper/config.py
+ct_scraper/counties.py
 ct_scraper/database.py
 ct_scraper/emailer.py
+ct_scraper/geocode.py
 ct_scraper/models.py
 ct_scraper/pipeline.py
 ct_scraper/schemas.py
@@ -17,5 +19,16 @@ ct_scraper_service.egg-info/SOURCES.txt
 ct_scraper_service.egg-info/dependency_links.txt
 ct_scraper_service.egg-info/requires.txt
 ct_scraper_service.egg-info/top_level.txt
+scripts/backfill_geocode.py
+scripts/check_first_records.py
+scripts/check_hartford.py
+scripts/check_page_links.py
+scripts/compare_pages.py
+scripts/debug_pagination.py
+scripts/dump_page.py
+scripts/pdf_downloader.py
+scripts/pdf_llm_extract.py
 scripts/scrape_daily.py
 scripts/send_digest.py
+scripts/test_imports.py
+scripts/test_page_switch.py

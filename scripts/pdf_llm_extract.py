@@ -310,6 +310,11 @@ def update_defendant_addresses(
             defenders.sort(key=lambda p: (p.role or "", p.id))
             role_set = {p.role.upper() for p in defenders if p.role}
 
+            # Set docket_no on all parties if not set
+            for party in parties:
+                if not party.docket_no:
+                    party.docket_no = docket
+
             for idx, item in enumerate(defendants):
                 name = (item.get("name") or "").strip()
                 address = (item.get("address") or "").strip()
@@ -318,14 +323,15 @@ def update_defendant_addresses(
                 try:
                     if idx < len(defenders):
                         party = defenders[idx]
+                        party.docket_no = docket
                         prev_name = party.name or ""
-                        prev_address = party.attorney_address or ""
+                        prev_address = party.mailing_address or ""
                         changed = False
                         if name and name != prev_name:
                             party.name = name
                             changed = True
                         if address and address != prev_address:
-                            party.attorney_address = address
+                            party.mailing_address = address
                             changed = True
                         status = "updated" if changed else "unchanged"
                         if changed:
@@ -337,17 +343,18 @@ def update_defendant_addresses(
                                 status=status,
                                 matched_party_name=party.name,
                                 previous_address=prev_address,
-                                stored_address=party.attorney_address or "",
+                                stored_address=party.mailing_address or "",
                             )
                         )
                     else:
                         role = next_defendant_role(role_set)
                         party = Party(
                             case_id=case.id,
+                            docket_no=docket,
                             role=role,
                             name=name,
                             attorney="",
-                            attorney_address=address,
+                            mailing_address=address,
                             file_date="",
                         )
                         session.add(party)
@@ -360,7 +367,7 @@ def update_defendant_addresses(
                                 status="created",
                                 matched_party_name=party.name,
                                 previous_address="",
-                                stored_address=party.attorney_address or "",
+                                stored_address=party.mailing_address or "",
                             )
                         )
                 except Exception as e:

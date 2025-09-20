@@ -16,6 +16,8 @@ import sys
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+from dotenv import load_dotenv
+load_dotenv()
 
 import pdfplumber
 import requests
@@ -291,7 +293,7 @@ def update_defendant_addresses(
             case = session.scalar(select(Case).where(Case.docket_no == docket))
             if not case:
                 logging.warning("No case found in database for docket %s", docket)
-                case_found = False
+                unmatched.extend(defendants)
                 for item in defendants:
                     outcomes.append(
                         MatchOutcome(
@@ -300,7 +302,7 @@ def update_defendant_addresses(
                             status="case_not_found",
                         )
                     )
-                return False, 0, list(defendants), outcomes
+                return False, 0, unmatched, outcomes
 
             case_found = True
             logging.info("Found case %s with %d total parties", docket, len(case.parties))
@@ -457,12 +459,12 @@ def process_pdf(
         case_found, updated, unmatched, outcomes = update_defendant_addresses(returned_docket, defendants, apply_updates=apply_updates)
         write_outcomes(csv_writer, returned_docket or docket, outcomes)
         if updated > 0:
-            case_found = True
+            case_found = True # A case must have been found to be updated.
         logging.info("Updated %s defendant address records for %s", updated, returned_docket)
         if unmatched:
             logging.info("Additional defendants found for unresolved case %s: %s", returned_docket, unmatched)
     else:
-        _, _, outcomes = update_defendant_addresses(returned_docket, defendants, apply_updates=apply_updates)
+        _, _, _, outcomes = update_defendant_addresses(returned_docket, defendants, apply_updates=apply_updates)
         write_outcomes(csv_writer, returned_docket or docket, outcomes)
         logging.info("Database updates skipped; captured %s defendant row(s) for %s", len(defendants), returned_docket)
         case_found = False
@@ -517,8 +519,11 @@ def open_csv_writer(path: pathlib.Path) -> Tuple[csv.DictWriter, Any]:
 
 def main() -> None:
     # Setup logging to file for server debugging
-    log_file = PROJECT_ROOT / "pdf_extract_debug.log"
-    file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+    log_dir = PROJECT_ROOT / "data" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "pdf_extract_debug.log"
+
+    file_handler = logging.FileHandler(log_file, mode="a", encoding="utf-8")
     file_handler.setLevel(logging.INFO)
     file_formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
     file_handler.setFormatter(file_formatter)
@@ -577,19 +582,6 @@ def main() -> None:
     if csv_writer:
         csv_handle.close()
 
-    try:
-        for pdf_path in pdfs:
-            try:
-                process_pdf(
-                    client,
-                    pdf_path,
-                    dpi=args.dpi,
-                    save_debug=not args.skip_debug,
-                    apply_updates=apply_updates,
-                    csv_writer=csv_writer,
-                )
-            except Exception:
-                logging.exception("Error while processing %s", pdf_path.name)
     finally:
         if csv_handle:
             csv_handle.close()

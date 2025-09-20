@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Setup DB tables and test data for extraction testing."""
 
-from ct_scraper.database import Base, engine, session_scope
+from ct_scraper.models import Base
+from ct_scraper.database import engine, session_scope
 from ct_scraper.models import Case, Party
+
+# Drop existing tables to align schema (for migration)
+Base.metadata.drop_all(engine)
 
 # Create all tables
 Base.metadata.create_all(engine)

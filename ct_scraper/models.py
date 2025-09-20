@@ -37,7 +37,7 @@ class Party(Base):
     role: Mapped[str] = mapped_column(String(16))
     name: Mapped[str] = mapped_column(String(255))
     attorney: Mapped[str] = mapped_column(String(255), default="")
-    mailing_address: Mapped[str] = mapped_column("attorney_address", String(255))
+    mailing_address: Mapped[str] = mapped_column(String(255))
     file_date: Mapped[str] = mapped_column(String(40))
 
     case: Mapped[Case] = relationship("Case", back_populates="parties")

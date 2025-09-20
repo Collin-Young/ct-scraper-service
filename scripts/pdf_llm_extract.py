@@ -565,24 +565,23 @@ def main() -> None:
     total_cases_found = 0
     total_updated = 0
     total_errors = 0
-    
-    finally:
-        if csv_handle:
-            csv_handle.close()
     try:
-        for pdf_path in pdfs:
-            try:
-                case_found, updated = process_pdf(client, pdf_path, dpi=args.dpi, save_debug=not args.skip_debug, apply_updates=apply_updates, csv_writer=csv_writer)
-                total_processed += 1
-                if case_found:
-                    total_cases_found += 1
-                total_updated += updated
-            except Exception as e:
-                logging.error("Error processing %s: %s", pdf_path.name, e)
-                total_errors += 1
-
-        logging.info("Processing complete: %d PDFs processed, %d cases found, %d updates, %d errors", total_processed, total_cases_found, total_updated, total_errors)
-
+        try:
+            for pdf_path in pdfs:
+                try:
+                    case_found, updated = process_pdf(client, pdf_path, dpi=args.dpi, save_debug=not args.skip_debug, apply_updates=apply_updates, csv_writer=csv_writer)
+                    total_processed += 1
+                    if case_found:
+                        total_cases_found += 1
+                    total_updated += updated
+                except Exception as e:
+                    logging.error("Error processing %s: %s", pdf_path.name, e)
+                    total_errors += 1
+    
+            logging.info("Processing complete: %d PDFs processed, %d cases found, %d updates, %d errors", total_processed, total_cases_found, total_updated, total_errors)
+        finally:
+            if csv_handle:
+                csv_handle.close()
     finally:
         if csv_handle:
             csv_handle.close()

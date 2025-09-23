@@ -7,6 +7,7 @@ from .models import Base
 
 
 DB_PATH = os.getenv('MO_DB_PATH', 'data/mo_cases.db')
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 engine = create_engine(f'sqlite:///{DB_PATH}', echo=False)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

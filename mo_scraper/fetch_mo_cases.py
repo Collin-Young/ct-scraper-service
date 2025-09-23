@@ -25,6 +25,10 @@ def get_driver(headless):
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
     if headless.lower() == 'headless':
         chrome_options.add_argument("--headless")
         print("Running in headless mode.")
@@ -110,7 +114,7 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
     session = get_session()
     url = "https://www.courts.mo.gov/cnet/filingDateSearch.do?newSearch=Y"
     driver = get_driver(headless)
-    wait = WebDriverWait(driver, 20)
+    wait = WebDriverWait(driver, 30)
 
     DROPDOWN_OPTIONS_FILE = os.path.join(STATIC_DIR, "dropdown_options.json")
     dropdown_df = pd.read_json(DROPDOWN_OPTIONS_FILE)
@@ -145,8 +149,10 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
         while True:
             print(f"\nScraping data for county: {county}, start date: {county_start_date}")
             driver.get(url)
-            time.sleep(5)  # Wait for page to fully load
+            time.sleep(10)  # Wait for page to fully load
             print("[DEBUG] Page loaded")
+            wait.until(EC.presence_of_element_located((By.ID, "courtCode")))
+            print("[DEBUG] Dropdown loaded")
             extracted_cases = []
             try:
                 wait.until(EC.presence_of_element_located((By.ID, "courtCode")))

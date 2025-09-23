@@ -485,7 +485,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--docket", action="append", help="Only process the specified docket number(s)")
     parser.add_argument("--limit", type=int, help="Process at most this many PDFs")
-    parser.add_argument("--dpi", type=int, default=220, help="Render resolution for PDF pages (default: 220)")
+    parser.add_argument("--dpi", type=int, default=150, help="Render resolution for PDF pages (default: 150)")
     parser.add_argument("--skip-debug", action="store_true", help="Do not write PNG snapshots to the debug directory")
     parser.add_argument("--out-csv", help="Optional path to append extraction results as CSV")
     parser.add_argument(
@@ -493,6 +493,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip updating the database; only emit extracted rows",
     )
+    parser.add_argument("--start-after", help="Start processing after this docket number (for resuming)")
     return parser
 
 
@@ -538,6 +539,8 @@ def main() -> None:
     args = parser.parse_args()
 
     pdfs = sorted(PDF_DIR.glob("*.pdf"))
+    if args.start_after:
+        pdfs = [p for p in pdfs if p.stem > args.start_after]
     if args.docket:
         wanted = {entry.strip().upper() for entry in args.docket if entry}
         pdfs = [p for p in pdfs if p.stem.upper() in wanted]

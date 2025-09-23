@@ -1,0 +1,5 @@
+[
+    { "type": "Replevin", "keywords": ["replevin"] },
+    { "type": "Eviction", "keywords": ["eviction"] },
+    { "type": "Foreclosure", "keywords": ["foreclosure"] }
+]

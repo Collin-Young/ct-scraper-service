@@ -162,12 +162,41 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
                 time.sleep(2)
 
                 date_input = driver.find_element(By.ID, "datepicker")
+                print(f"[DEBUG] Date input found with ID: {date_input.get_attribute('id')}")
+                print(f"[DEBUG] Initial readonly attribute: {date_input.get_attribute('readonly')}")
+                
                 driver.execute_script("arguments[0].removeAttribute('readonly')", date_input)
+                print(f"[DEBUG] Readonly after removal: {date_input.get_attribute('readonly')}")
+                
+                # Try clicking the input first to potentially open the calendar
+                driver.execute_script("arguments[0].click();", date_input)
+                time.sleep(1)
+                print("[DEBUG] Clicked date input to open calendar")
+                
+                # Check if picker holder appears after click
+                try:
+                    picker_holder = driver.find_element(By.CSS_SELECTOR, ".picker__holder")
+                    print(f"[DEBUG] Picker holder visible after click: {picker_holder.is_displayed()}")
+                except:
+                    print("[DEBUG] Picker holder not found after click")
+                
                 date_input.clear()
                 date_input.send_keys(county_start_date)
                 time.sleep(1)
+                print(f"[DEBUG] Sent keys: {county_start_date}")
+                print(f"[DEBUG] Input value after send_keys: {date_input.get_attribute('value')}")
+                
                 driver.find_element(By.TAG_NAME, "body").click()
+                print("[DEBUG] Clicked body to close any picker")
                 print("[DEBUG] Date entered")
+                
+                # Check picker after input
+                try:
+                    picker_holder = driver.find_element(By.CSS_SELECTOR, ".picker__holder")
+                    print(f"[DEBUG] Picker holder visible after input: {picker_holder.is_displayed()}")
+                except:
+                    print("[DEBUG] Picker holder not found after input")
+                    
                 try:
                     driver.execute_script("document.querySelector('.picker__holder').style.display='none';")
                 except:

@@ -20,6 +20,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 
 def get_driver(headless):
+    import os
     chrome_options = Options()
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
@@ -29,6 +30,9 @@ def get_driver(headless):
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
+    # Add unique user data dir to avoid session conflicts
+    user_data_dir = f"/tmp/chrome_profile_{os.getpid()}"
+    chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
     if headless.lower() == 'headless':
         chrome_options.add_argument("--headless")
         print("Running in headless mode.")

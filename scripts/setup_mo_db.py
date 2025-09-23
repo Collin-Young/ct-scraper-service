@@ -10,7 +10,7 @@ def main():
     session = get_session()
 
     # Populate case_types
-    case_types_path = os.path.join('ct-scraper-service', 'mo_scraper', 'static', 'case_types.json')
+    case_types_path = os.path.join(os.path.dirname(__file__), '..', 'mo_scraper', 'static', 'case_types.json')
     with open(case_types_path, 'r') as f:
         case_types_data = json.load(f)
     for item in case_types_data:
@@ -20,7 +20,7 @@ def main():
     print("Case types populated.")
 
     # Populate dropdown_options
-    dropdown_path = os.path.join('ct-scraper-service', 'mo_scraper', 'static', 'dropdown_options.json')
+    dropdown_path = os.path.join(os.path.dirname(__file__), '..', 'mo_scraper', 'static', 'dropdown_options.json')
     with open(dropdown_path, 'r') as f:
         dropdown_data = json.load(f)
     for item in dropdown_data:

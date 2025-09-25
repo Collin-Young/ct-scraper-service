@@ -53,11 +53,18 @@ def get_driver(headless):
         proxy_arg = proxy_url if "://" in proxy_url else f"http://{proxy_url}"
         parsed_proxy = urlparse(proxy_arg)
         display_proxy = proxy_arg
+        proxy_command = proxy_arg
         if parsed_proxy.hostname:
             host_port = f"{parsed_proxy.hostname}:{parsed_proxy.port}" if parsed_proxy.port else parsed_proxy.hostname
             scheme = parsed_proxy.scheme or "http"
             display_proxy = f"{scheme}://{host_port}"
-        chrome_options.add_argument(f"--proxy-server={proxy_arg}")
+            credentials = ""
+            if parsed_proxy.username and parsed_proxy.password:
+                credentials = f"{parsed_proxy.username}:{parsed_proxy.password}@"
+            authority = f"{credentials}{host_port}"
+            proxy_command = f"http={authority};https={authority}"
+        chrome_options.add_argument(f"--proxy-server={proxy_command}")
+        chrome_options.add_argument('--proxy-bypass-list=<-loopback>')
         print(f"[DEBUG] Routing traffic through proxy: {display_proxy}")
 
     # Add unique user data dir to avoid session conflicts

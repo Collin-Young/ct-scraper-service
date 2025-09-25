@@ -1,10 +1,10 @@
-from selenium import webdriver
+﻿from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, StaleElementReferenceException
 from webdriver_manager.chrome import ChromeDriverManager
 
 import pandas as pd
@@ -18,6 +18,16 @@ from mo_scraper.models import Case, Party
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
+DEBUG_DIR = os.path.join(BASE_DIR, 'debug_artifacts')
+BLOCK_PAGE_PATTERNS = (
+    'verify you are a human',
+    'checking your browser',
+    'just a moment',
+    'attention required',
+    'enable javascript to use',
+    'access denied'
+)
+
 
 def get_driver(headless):
     import os
@@ -25,22 +35,43 @@ def get_driver(headless):
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-software-rasterizer")
+    chrome_options.add_argument("--lang=en-US")
     chrome_options.add_argument("--window-size=1920,1080")
-    chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    chrome_options.add_argument(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    chrome_options.add_experimental_option('useAutomationExtension', False)
+    chrome_options.add_experimental_option("useAutomationExtension", False)
     # Add unique user data dir to avoid session conflicts
     user_data_dir = f"/tmp/chrome_profile_{os.getpid()}"
     chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
-    if headless.lower() == 'headless':
-        chrome_options.add_argument("--headless")
+    print(f"[DEBUG] Using unique user data dir: {user_data_dir}")
+    if headless.lower() == "headless":
+        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--disable-features=VizDisplayCompositor")
         print("Running in headless mode.")
     else:
         print("Running in non-headless mode.")
 
     service = Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=chrome_options)
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    driver.execute_cdp_cmd(
+        "Page.addScriptToEvaluateOnNewDocument",
+        {
+            "source": '''
+                Object.defineProperty(navigator, "webdriver", {get: () => undefined});
+                window.navigator.chrome = { runtime: {} };
+                Object.defineProperty(navigator, "languages", { get: () => ['en-US', 'en'] });
+                Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3] });
+            '''
+        },
+    )
+    driver.set_page_load_timeout(60)
+    return driver
 
 def scrape_party_details(driver, url):
     try:
@@ -113,6 +144,40 @@ def scrape_party_details(driver, url):
         print(f"[ERROR] scraping URL {url}: {e}")
         return []
 
+
+def dump_debug_artifacts(driver, label):
+    try:
+        os.makedirs(DEBUG_DIR, exist_ok=True)
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        base_name = f"{timestamp}_{label}"
+        screenshot_path = os.path.join(DEBUG_DIR, f"{base_name}.png")
+        html_path = os.path.join(DEBUG_DIR, f"{base_name}.html")
+        driver.save_screenshot(screenshot_path)
+        with open(html_path, "w", encoding="utf-8") as handle:
+            handle.write(driver.page_source)
+        print(f"[DEBUG] Saved debug artifacts to {screenshot_path} and {html_path}")
+    except Exception as debug_error:
+        print(f"[WARN] Unable to persist debug artifacts: {debug_error}")
+
+
+def is_block_page(page_source):
+    lowered = page_source.lower()
+    return any(pattern in lowered for pattern in BLOCK_PAGE_PATTERNS)
+
+
+def ensure_search_form_ready(driver, wait, label):
+    try:
+        wait.until(lambda drv: drv.execute_script("return document.readyState") == "complete")
+        wait.until(EC.presence_of_element_located((By.ID, "mainContent")))
+        wait.until(EC.visibility_of_element_located((By.ID, "courtCode")))
+        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#courtCode option[value]")))
+        wait.until(EC.element_to_be_clickable((By.ID, "findButton")))
+        return True
+    except TimeoutException as exc:
+        print("[TIMEOUT] Search form did not become ready in time.")
+        dump_debug_artifacts(driver, f"form_ready_{label}")
+        raise exc
+
 def scrape_court_cases_and_parties(county_name, start_date, continue_search="no", headless="no", filter_case_type="all"):
     init_db()
     session = get_session()
@@ -150,60 +215,92 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
         county_start_date = start_date
         consecutive_no_cases = 0
         max_consecutive_no_cases = 8
+
         while True:
             print(f"\nScraping data for county: {county}, start date: {county_start_date}")
-            driver.get(url)
-            time.sleep(10)  # Wait for page to fully load
-            print("[DEBUG] Page loaded")
-            wait.until(EC.presence_of_element_located((By.ID, "courtCode")))
-            print("[DEBUG] Dropdown loaded")
+            form_label = f"{county.replace(' ', '_')}_{county_start_date.replace('/', '-')}"
+            form_ready = False
+            for attempt in range(3):
+                attempt_num = attempt + 1
+                if attempt == 0:
+                    print("[DEBUG] Loading search form")
+                else:
+                    print(f"[DEBUG] Reloading search form (attempt {attempt_num})")
+                driver.get(url)
+                try:
+                    ensure_search_form_ready(driver, wait, f"{form_label}_attempt{attempt_num}")
+                    form_ready = True
+                    print("[DEBUG] Search form ready")
+                    break
+                except TimeoutException as timeout_exc:
+                    page_source = driver.page_source
+                    if is_block_page(page_source):
+                        print("[WARN] Potential block page detected. Waiting 15 seconds before retry.")
+                        time.sleep(15)
+                    else:
+                        print(f"[WARN] Search form still loading (attempt {attempt_num}): {timeout_exc}")
+                        time.sleep(5)
+                    if attempt == 2:
+                        dump_debug_artifacts(driver, f"form_load_failed_{form_label}")
+            if not form_ready:
+                print(f"[ERROR] Unable to load search form for {county} on {county_start_date}.")
+                break
+
             extracted_cases = []
             try:
-                wait.until(EC.presence_of_element_located((By.ID, "courtCode")))
-                print("[DEBUG] CourtCode element found")
-                Select(driver.find_element(By.ID, "courtCode")).select_by_visible_text(county)
-                print("[DEBUG] County selected")
-                time.sleep(2)
+                select_success = False
+                for select_attempt in range(3):
+                    try:
+                        wait.until(EC.element_to_be_clickable((By.ID, "courtCode")))
+                        Select(driver.find_element(By.ID, "courtCode")).select_by_visible_text(county)
+                        select_success = True
+                        print("[DEBUG] County selected")
+                        time.sleep(2)
+                        break
+                    except (NoSuchElementException, StaleElementReferenceException) as select_error:
+                        print(f"[WARN] Retrying county selection ({select_attempt + 1}/3): {select_error}")
+                        time.sleep(2)
+                if not select_success:
+                    print(f"[ERROR] Unable to select county {county}.")
+                    dump_debug_artifacts(driver, f"county_select_{form_label}")
+                    break
 
-                date_input = driver.find_element(By.ID, "datepicker")
+                date_input = wait.until(EC.presence_of_element_located((By.ID, "datepicker")))
                 print(f"[DEBUG] Date input found with ID: {date_input.get_attribute('id')}")
                 print(f"[DEBUG] Initial readonly attribute: {date_input.get_attribute('readonly')}")
-                
+
                 driver.execute_script("arguments[0].removeAttribute('readonly')", date_input)
                 print(f"[DEBUG] Readonly after removal: {date_input.get_attribute('readonly')}")
-                
-                # Try clicking the input first to potentially open the calendar
+
                 driver.execute_script("arguments[0].click();", date_input)
                 time.sleep(1)
                 print("[DEBUG] Clicked date input to open calendar")
-                
-                # Check if picker holder appears after click
+
                 try:
                     picker_holder = driver.find_element(By.CSS_SELECTOR, ".picker__holder")
                     print(f"[DEBUG] Picker holder visible after click: {picker_holder.is_displayed()}")
-                except:
+                except Exception:
                     print("[DEBUG] Picker holder not found after click")
-                
+
                 date_input.clear()
                 date_input.send_keys(county_start_date)
                 time.sleep(1)
                 print(f"[DEBUG] Sent keys: {county_start_date}")
                 print(f"[DEBUG] Input value after send_keys: {date_input.get_attribute('value')}")
-                
+
                 driver.find_element(By.TAG_NAME, "body").click()
                 print("[DEBUG] Clicked body to close any picker")
                 print("[DEBUG] Date entered")
-                
-                # Check picker after input
+
                 try:
                     picker_holder = driver.find_element(By.CSS_SELECTOR, ".picker__holder")
                     print(f"[DEBUG] Picker holder visible after input: {picker_holder.is_displayed()}")
-                except:
+                except Exception:
                     print("[DEBUG] Picker holder not found after input")
-                    
+
                 try:
                     driver.execute_script("document.querySelector('.picker__holder').style.display='none';")
-                except:
+                except Exception:
                     pass
 
                 find_button = driver.find_element(By.ID, "findButton")
@@ -214,7 +311,7 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
 
                 wait.until(EC.element_to_be_clickable((By.NAME, "searchResult_length")))
                 Select(driver.find_element(By.NAME, "searchResult_length")).select_by_value("100")
-                time.sleep(1)  # Just a nudge to ensure the table loads
+                time.sleep(1)
 
                 while True:
                     case_table = wait.until(EC.presence_of_element_located((By.ID, "searchResult")))
@@ -259,7 +356,6 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
                 print(f"[TIMEOUT] Element not found for {county_start_date}: {e}")
             except Exception as e:
                 print(f"[ERROR] Unexpected error for {county_start_date}: {e}")
-
             if len(extracted_cases) > 0:
                 consecutive_no_cases = 0
                 print(f"Found {len(extracted_cases)} cases for {county_start_date}")
@@ -366,3 +462,7 @@ if __name__ == "__main__":
         print(f"Error: {e}")
         import traceback
         traceback.print_exc()
+
+
+
+

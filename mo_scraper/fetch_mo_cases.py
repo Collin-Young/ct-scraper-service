@@ -14,6 +14,8 @@ import uuid
 from datetime import datetime, timedelta
 import json
 import sys
+import base64
+from urllib.parse import urlparse
 from mo_scraper.database import init_db, get_session
 from mo_scraper.models import Case, Party
 
@@ -48,9 +50,23 @@ def get_driver(headless):
     chrome_options.add_experimental_option("useAutomationExtension", False)
 
     proxy_url = os.environ.get("MO_SCRAPER_PROXY")
+    proxy_auth_header = None
     if proxy_url:
-        chrome_options.add_argument(f"--proxy-server={proxy_url}")
-        print(f"[DEBUG] Routing traffic through proxy: {proxy_url}")
+        parsed_proxy = urlparse(proxy_url if "://" in proxy_url else f"http://{proxy_url}")
+        proxy_host = parsed_proxy.hostname
+        proxy_port = parsed_proxy.port
+        proxy_scheme = parsed_proxy.scheme or "http"
+        proxy_target = proxy_url
+        display_proxy = proxy_url
+        if proxy_host:
+            host_port = f"{proxy_host}:{proxy_port}" if proxy_port else proxy_host
+            proxy_target = f"{proxy_scheme}://{host_port}"
+            display_proxy = proxy_target
+            if parsed_proxy.username and parsed_proxy.password:
+                credentials = f"{parsed_proxy.username}:{parsed_proxy.password}"
+                proxy_auth_header = "Basic " + base64.b64encode(credentials.encode("utf-8")).decode("utf-8")
+        chrome_options.add_argument(f"--proxy-server={proxy_target}")
+        print(f"[DEBUG] Routing traffic through proxy: {display_proxy}")
 
     # Add unique user data dir to avoid session conflicts
     headless_flag = headless.lower() == "headless"
@@ -73,6 +89,12 @@ def get_driver(headless):
 
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
+    if proxy_auth_header:
+        driver.execute_cdp_cmd("Network.enable", {})
+        driver.execute_cdp_cmd(
+            "Network.setExtraHTTPHeaders",
+            {"headers": {"Proxy-Authorization": proxy_auth_header}}
+        )
     driver.execute_cdp_cmd(
         "Page.addScriptToEvaluateOnNewDocument",
         {

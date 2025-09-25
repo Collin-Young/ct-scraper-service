@@ -46,6 +46,12 @@ def get_driver(headless):
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
+
+    proxy_url = os.environ.get("MO_SCRAPER_PROXY")
+    if proxy_url:
+        chrome_options.add_argument(f"--proxy-server={proxy_url}")
+        print(f"[DEBUG] Routing traffic through proxy: {proxy_url}")
+
     # Add unique user data dir to avoid session conflicts
     headless_flag = headless.lower() == "headless"
     forced_profile_dir = os.environ.get("MO_SCRAPER_PROFILE_DIR")
@@ -470,3 +476,4 @@ if __name__ == "__main__":
         print(f"Error: {e}")
         import traceback
         traceback.print_exc()
+

@@ -47,11 +47,11 @@ def get_driver(headless):
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
     # Add unique user data dir to avoid session conflicts
+    unique_token = f"{os.getpid()}_{int(time.time())}_{uuid.uuid4().hex}"
+    user_data_dir = f"/tmp/chrome_profile_{unique_token}"
+    chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
+    print(f"[DEBUG] Using unique user data dir: {user_data_dir}")
     if headless.lower() == "headless":
-        unique_token = f"{os.getpid()}_{int(time.time())}_{uuid.uuid4().hex}"
-        user_data_dir = f"/tmp/chrome_profile_{unique_token}"
-        chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
-        print(f"[DEBUG] Using unique user data dir: {user_data_dir}")
         chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--disable-features=VizDisplayCompositor")
         print("Running in headless mode.")

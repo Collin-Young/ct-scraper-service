@@ -15,7 +15,6 @@ dependencies = [
     "stripe",
     "requests",
     "selenium",
-    "playwright",
     "chromedriver-autoinstaller",
     "pydantic[email]",
     "sqlalchemy",

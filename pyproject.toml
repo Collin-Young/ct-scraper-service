@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "ct-scraper-service"
 version = "0.1.0"
 description = "Cloud service for CT court lead scraping and email digests"

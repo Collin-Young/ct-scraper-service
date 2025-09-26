@@ -1,4 +1,4 @@
-﻿from selenium import webdriver
+from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -464,9 +464,9 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
                 print(f"Updating to next date from {county_start_date}")
                 try:
                     dt = datetime.strptime(county_start_date, '%m/%d/%Y')
-                    next_dt = dt - timedelta(days=7)
-                    if next_dt < datetime.today() - timedelta(days=365):
-                        print("Reached 1 year back. Stopping.")
+                    next_dt = dt + timedelta(days=7)
+                    if next_dt > datetime.today():
+                        print("Reached current date. Stopping.")
                         break
                     county_start_date = next_dt.strftime('%m/%d/%Y')
                     print(f"Next date: {county_start_date}")
@@ -524,4 +524,5 @@ if __name__ == "__main__":
         print(f"Error: {e}")
         import traceback
         traceback.print_exc()
+
 

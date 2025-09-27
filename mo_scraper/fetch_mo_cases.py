@@ -21,6 +21,7 @@ from mo_scraper.models import Case, Party
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 DEBUG_DIR = os.path.join(BASE_DIR, 'debug_artifacts')
+PROGRESS_FILE = os.path.join(BASE_DIR, 'mo_scraper_county_progress.txt')
 BLOCK_PAGE_PATTERNS = (
     'verify you are a human',
     'checking your browser',
@@ -287,6 +288,56 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
             print(f"Multiple counties match '{county_name}': {matching_counties}. Using the first one.")
         counties_to_scrape = [matching_counties[0]]
 
+    def resolve_county_index(candidates, query):
+        if not query:
+            return None, None
+        normalized_query = query.strip().lower()
+        for idx, name in enumerate(candidates):
+            if name.lower() == normalized_query:
+                return idx, name
+        for idx, name in enumerate(candidates):
+            if normalized_query in name.lower():
+                return idx, name
+        return None, None
+
+    start_index = 0
+    resume_message = None
+    if county_name.lower() == "all":
+        start_county_env = os.environ.get('MO_SCRAPER_START_COUNTY')
+        if start_county_env:
+            idx, matched_name = resolve_county_index(counties_to_scrape, start_county_env)
+            if idx is not None:
+                start_index = idx
+                resume_message = f"[RESUME] Starting at specified county '{matched_name}' via MO_SCRAPER_START_COUNTY."
+            else:
+                print(f"[WARN] MO_SCRAPER_START_COUNTY='{start_county_env}' not found; processing full list.")
+        elif os.path.exists(PROGRESS_FILE):
+            with open(PROGRESS_FILE, 'r', encoding='utf-8') as progress_handle:
+                last_completed = progress_handle.read().strip()
+            idx, matched_name = resolve_county_index(counties_to_scrape, last_completed)
+            if idx is not None:
+                start_index = idx + 1
+                if start_index < len(counties_to_scrape):
+                    resume_message = f"[RESUME] Skipping {start_index} counties already processed (through '{matched_name}')."
+                else:
+                    print(f"[RESUME] All counties already processed through '{matched_name}'. Nothing to do.")
+            elif last_completed:
+                print(f"[RESUME] Stored progress '{last_completed}' not found in dropdown; ignoring.")
+        if resume_message:
+            print(resume_message)
+        if start_index >= len(counties_to_scrape):
+            if os.path.exists(PROGRESS_FILE):
+                try:
+                    os.remove(PROGRESS_FILE)
+                except OSError as cleanup_err:
+                    print(f"[WARN] Unable to remove progress file: {cleanup_err}")
+            session.close()
+            driver.quit()
+            print("[INFO] No counties left to process.")
+            return
+        if start_index > 0:
+            counties_to_scrape = counties_to_scrape[start_index:]
+
     case_keywords = []
     if filter_case_type != "all":
         CASE_TYPES_FILE = os.path.join(STATIC_DIR, "case_types.json")
@@ -295,10 +346,13 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
         case_keywords = case_types_data.get(filter_case_type, [])
 
     saved_count = 0
+    all_counties_completed = True
     for county in counties_to_scrape:
+        print(f"[COUNTY] Starting {county}")
         county_start_date = start_date
         consecutive_no_cases = 0
         max_consecutive_no_cases = 8
+        county_completed = False
 
         while True:
             print(f"\nScraping data for county: {county}, start date: {county_start_date}")
@@ -481,6 +535,7 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
                 consecutive_no_cases += 1
                 print(f"No cases found for {county_start_date}")
             if consecutive_no_cases > max_consecutive_no_cases:
+                county_completed = True
                 print("No cases found for several consecutive dates. Stopping.")
                 break
 
@@ -490,6 +545,7 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
                     dt = datetime.strptime(county_start_date, '%m/%d/%Y')
                     next_dt = dt + timedelta(days=7)
                     if next_dt > datetime.today():
+                        county_completed = True
                         print("Reached current date. Stopping.")
                         break
                     county_start_date = next_dt.strftime('%m/%d/%Y')
@@ -498,10 +554,26 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
                     print(f"Date update error: {e}")
                     break
             else:
+                county_completed = True
                 break
+
+        if county_completed:
+            print(f"[COUNTY] Completed {county}")
+            if county_name.lower() == "all":
+                with open(PROGRESS_FILE, 'w', encoding='utf-8') as progress_handle:
+                    progress_handle.write(county)
+        else:
+            all_counties_completed = False
+            if county_name.lower() == "all":
+                print(f"[COUNTY] {county} did not complete successfully; leaving progress marker unchanged.")
 
     session.close()
     driver.quit()
+    if county_name.lower() == "all" and all_counties_completed and os.path.exists(PROGRESS_FILE):
+        try:
+            os.remove(PROGRESS_FILE)
+        except OSError as cleanup_err:
+            print(f"[WARN] Unable to remove progress file: {cleanup_err}")
     print(f"\n[SUCCESS] Scraped and saved {saved_count} new cases to MO database.")
 
 if __name__ == "__main__":
@@ -548,5 +620,3 @@ if __name__ == "__main__":
         print(f"Error: {e}")
         import traceback
         traceback.print_exc()
-
-

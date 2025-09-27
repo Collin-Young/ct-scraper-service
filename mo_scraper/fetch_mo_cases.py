@@ -132,13 +132,35 @@ def get_driver(headless):
             '''
         },
     )
-    driver.set_page_load_timeout(60)
+    driver.set_page_load_timeout(120)
     return driver
+
+
+def load_url_with_retries(driver, url, label, retries=3, wait_seconds=5):
+    for attempt in range(1, retries + 1):
+        try:
+            driver.get(url)
+            return True
+        except TimeoutException as exc:
+            print(f"[TIMEOUT] {label} attempt {attempt}/{retries}: {exc}")
+            try:
+                driver.execute_script("window.stop();")
+            except Exception:
+                pass
+        except Exception as exc:
+            print(f"[ERROR] {label} attempt {attempt}/{retries}: {exc}")
+        if attempt < retries:
+            time.sleep(wait_seconds * attempt)
+    return False
 
 def scrape_party_details(driver, url):
     try:
         print(f"[SEARCH] Accessing URL: {url}")
-        driver.get(url)
+        case_label = "party_page"
+        if "caseNumber=" in url:
+            case_label = url.split("caseNumber=", 1)[1].split("&", 1)[0]
+        if not load_url_with_retries(driver, url, f"party_page_{case_label}"):
+            return []
 
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, "mainContent"))
@@ -288,7 +310,9 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
                     print("[DEBUG] Loading search form")
                 else:
                     print(f"[DEBUG] Reloading search form (attempt {attempt_num})")
-                driver.get(url)
+                if not load_url_with_retries(driver, url, f"search_form_{form_label}_attempt{attempt_num}"):
+                    time.sleep(5)
+                    continue
                 try:
                     ensure_search_form_ready(driver, wait, f"{form_label}_attempt{attempt_num}")
                     form_ready = True

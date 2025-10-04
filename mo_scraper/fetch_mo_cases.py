@@ -22,6 +22,10 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 DEBUG_DIR = os.path.join(BASE_DIR, 'debug_artifacts')
 PROGRESS_FILE = os.path.join(BASE_DIR, 'mo_scraper_county_progress.txt')
+PAGE_LOAD_TIMEOUT = int(os.environ.get('MO_SCRAPER_PAGE_LOAD_TIMEOUT', '180'))
+NAV_RETRY_ATTEMPTS = int(os.environ.get('MO_SCRAPER_NAV_RETRIES', '5'))
+NAV_RETRY_WAIT_SECONDS = int(os.environ.get('MO_SCRAPER_NAV_RETRY_WAIT', '10'))
+DEFAULT_WAIT_SECONDS = int(os.environ.get('MO_SCRAPER_WAIT_SECONDS', '60'))
 BLOCK_PAGE_PATTERNS = (
     'verify you are a human',
     'checking your browser',
@@ -133,11 +137,11 @@ def get_driver(headless):
             '''
         },
     )
-    driver.set_page_load_timeout(120)
+    driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
     return driver
 
 
-def load_url_with_retries(driver, url, label, retries=3, wait_seconds=5):
+def load_url_with_retries(driver, url, label, retries=NAV_RETRY_ATTEMPTS, wait_seconds=NAV_RETRY_WAIT_SECONDS):
     for attempt in range(1, retries + 1):
         try:
             driver.get(url)
@@ -163,7 +167,7 @@ def scrape_party_details(driver, url):
         if not load_url_with_retries(driver, url, f"party_page_{case_label}"):
             return []
 
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, DEFAULT_WAIT_SECONDS).until(
             EC.presence_of_element_located((By.ID, "mainContent"))
         )
 
@@ -177,13 +181,13 @@ def scrape_party_details(driver, url):
         """)
 
         # Click the tab
-        parties_tab = WebDriverWait(driver, 10).until(
+        parties_tab = WebDriverWait(driver, DEFAULT_WAIT_SECONDS).until(
             EC.element_to_be_clickable((By.LINK_TEXT, "Parties & Attorneys"))
         )
         parties_tab.click()
 
         # Wait until a party card div appears inside the container
-        WebDriverWait(driver, 15).until(
+        WebDriverWait(driver, DEFAULT_WAIT_SECONDS).until(
             EC.presence_of_element_located((By.XPATH, "//*[@id='actualPartytData']/div"))
         )
         print("[SUCCESS] Party cards loaded successfully")
@@ -268,7 +272,7 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
     session = get_session()
     url = "https://www.courts.mo.gov/cnet/filingDateSearch.do?newSearch=Y"
     driver = get_driver(headless)
-    wait = WebDriverWait(driver, 30)
+    wait = WebDriverWait(driver, DEFAULT_WAIT_SECONDS)
 
     DROPDOWN_OPTIONS_FILE = os.path.join(STATIC_DIR, "dropdown_options.json")
     dropdown_df = pd.read_json(DROPDOWN_OPTIONS_FILE)
@@ -620,3 +624,4 @@ if __name__ == "__main__":
         print(f"Error: {e}")
         import traceback
         traceback.print_exc()
+

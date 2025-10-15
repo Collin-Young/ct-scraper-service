@@ -345,6 +345,7 @@ def scrape_court_cases_and_parties(
     filter_case_type="all",
     skip_non_empty=False,
     force_counties=None,
+    force_county_start_dates=None,
 ):
     init_db()
     session = get_session()
@@ -430,17 +431,25 @@ def scrape_court_cases_and_parties(
     saved_count = 0
     all_counties_completed = True
     force_counties = force_counties or []
+    force_county_start_dates = force_county_start_dates or {}
 
     def normalize_name(value: str | None) -> str:
         return (value or "").strip().lower()
 
     forced_normalized = {normalize_name(name) for name in force_counties}
+    forced_start_dates_normalized = {
+        normalize_name(name): date for name, date in force_county_start_dates.items()
+    }
 
     for county in counties_to_scrape:
         county_label = county.split(" - ")[0].strip()
         county_is_forced = (
             normalize_name(county) in forced_normalized
             or normalize_name(county_label) in forced_normalized
+        )
+        county_override_start = (
+            forced_start_dates_normalized.get(normalize_name(county))
+            or forced_start_dates_normalized.get(normalize_name(county_label))
         )
         if skip_non_empty and not county_is_forced:
             existing_case = (
@@ -454,7 +463,7 @@ def scrape_court_cases_and_parties(
                 )
                 continue
         print(f"[COUNTY] Starting {county}")
-        county_start_date = start_date
+        county_start_date = county_override_start or start_date
         consecutive_no_cases = 0
         max_consecutive_no_cases = 8
         county_completed = False

@@ -58,13 +58,21 @@ ZERO_COUNTIES = (
 )
 
 
-def run_queue(counties, start_date, continue_search, headless):
+def run_queue(counties, start_date, continue_search, headless, force_start_overrides):
+    def resolve_override(label: str) -> str | None:
+        normalized = label.strip().lower()
+        for key, value in force_start_overrides.items():
+            if key in normalized:
+                return value
+        return None
+
     for label in counties:
         print(f"\n===== Running {label} =====")
         try:
+            county_start = resolve_override(label) or start_date
             scrape_court_cases_and_parties(
                 county_name=label,
-                start_date=start_date,
+                start_date=county_start,
                 continue_search=continue_search,
                 headless=headless,
             )
@@ -91,6 +99,13 @@ def parse_args():
         action="store_true",
         help="Run Chrome with a visible window instead of headless mode.",
     )
+    parser.add_argument(
+        "--force-county-start",
+        action="append",
+        default=[],
+        metavar="NAME=MM/DD/YYYY",
+        help="Override start date for specific counties (repeatable, case-insensitive match).",
+    )
     return parser.parse_args()
 
 
@@ -98,7 +113,17 @@ def main():
     args = parse_args()
     continue_flag = "no" if args.no_continue else "continue"
     headless_flag = "no" if args.no_headless else "headless"
-    run_queue(ZERO_COUNTIES, args.start_date, continue_flag, headless_flag)
+    overrides = {}
+    for entry in args.force_county_start:
+        if "=" not in entry:
+            raise ValueError(f"--force-county-start entries must use NAME=DATE format (got '{entry}')")
+        county_name, override_date = entry.split("=", 1)
+        county_name = county_name.strip().lower()
+        override_date = override_date.strip()
+        if not county_name or not override_date:
+            raise ValueError(f"--force-county-start entries must include both county and date (got '{entry}')")
+        overrides[county_name] = override_date
+    run_queue(ZERO_COUNTIES, args.start_date, continue_flag, headless_flag, overrides)
 
 
 if __name__ == "__main__":

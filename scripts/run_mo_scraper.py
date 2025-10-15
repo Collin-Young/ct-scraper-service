@@ -14,6 +14,13 @@ def main():
     parser.add_argument('--continue-search', default='continue', choices=['continue', 'no'], help='Continue search for MO scraper')
     parser.add_argument('--headless', action='store_true', help='Run in headless mode')
     parser.add_argument('--filter-case-type', default='all', help='Filter case type for MO scraper')
+    parser.add_argument('--skip-non-empty', action='store_true', help='Skip MO counties that already have entries in the database')
+    parser.add_argument(
+        '--force-county',
+        action='append',
+        default=[],
+        help='County name to always run even if skipping non-empty counties (can be used multiple times)'
+    )
 
     args = parser.parse_args()
 
@@ -23,7 +30,9 @@ def main():
             start_date=args.start_date,
             continue_search=args.continue_search,
             headless='headless' if args.headless else 'no',
-            filter_case_type=args.filter_case_type
+            filter_case_type=args.filter_case_type,
+            skip_non_empty=args.skip_non_empty,
+            force_counties=args.force_county,
         )
 
     if args.ct or args.both:

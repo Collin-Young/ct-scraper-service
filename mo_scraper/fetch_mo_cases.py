@@ -35,6 +35,76 @@ BLOCK_PAGE_PATTERNS = (
     'access denied'
 )
 
+def normalize_case_type(value: str) -> str:
+    """Normalize case type strings for reliable comparisons."""
+    if not value:
+        return ""
+    sanitized = (
+        value.replace('\u2013', '-')  # en dash
+        .replace('\u2014', '-')       # em dash
+        .replace('\xa0', ' ')         # non-breaking space
+    )
+    collapsed = " ".join(sanitized.split())
+    return collapsed.upper()
+
+ALLOWED_PARTY_CASE_TYPES = {
+    "CC FORECLOSURE",
+    "CC QUIET TITLE",
+    "CC MECHANICS LIEN",
+    "AC APPL TO ENF MECHANICS LIEN",
+    "CC APPL TO ENF MECHANICS LIEN",
+    "AC LANDLORD COMPLAINT",
+    "AC LANDLORD ACTIONS (BULK)",
+    "AC RENT AND POSSESSION",
+    "AC UNLAWFUL DETAINER",
+    "AC UNLAWFUL OCCUPANT",
+    "CC RENT AND POSSESSION",
+    "CC UNLAWFUL DETAINER",
+    "AC REPLEVIN",
+    "CC REPLEVIN",
+    "AC OWNR/LIENHLDR PETN PROP REL",
+    "AC BREACH OF CONTRACT",
+    "AC PROMISSORY NOTE",
+    "AC SUIT ON ACCOUNT",
+    "AC REVIVAL OF JUDGMENT",
+    "CC BREACH OF CONTRACT",
+    "CC PROMISSORY NOTE",
+    "CC REVIVAL OF JUDGMENT",
+    "CC TRANSCRIPT JUDGMENT",
+    "AC OTHER REAL ESTATE ACTIONS",
+    "CC OTHER REAL ESTATE ACTIONS",
+    "CC PARTITION",
+    "CC SPECIFIC PERFORMANCE",
+    "AC DELINQUENT CITY TAXES",
+    "COLLECTOR OF REVENUE TAX CASES",
+    "CC CERT OF LIEN-DOR TAXES",
+    "CC DISSOLUTION- W/ CHILDREN",
+    "CC DISSOLUTION- W/O CHILDREN",
+    "CC LEGAL SEP, ANNUL, SEP MAINT",
+    "FC DISSOLUTION- W/ CHILDREN",
+    "FC DISSOLUTION- W/O CHILDREN",
+    "FC LEGAL SEP, ANNUL, SEP MAINT",
+    "CC PET FOR CHILD CUSTODY/SUPP",
+    "FC PET FOR CHILD CUSTODY/SUPP",
+    "CC CS MOTION TO MODIFY",
+    "FC CS MOTION TO MODIFY",
+    "PR INDEPENDENT WITH WILL",
+    "PR INDEPENDENT WITHOUT WILL",
+    "PR REFUSAL OF LETTERS-SPOUSE",
+    "PR REFUSAL OF LETTERS-CREDITOR",
+    "PR SMALL EST AFFIDAVIT W/WILL",
+    "PR SMALL EST AFFIDAVIT W/O WIL",
+    "PR WILL ADMITTED OR REJECTED",
+    "PR REQUIRED ADMINISTRATION",
+    "PR DETERMINATION OF HEIRSHIP",
+    "PR GUARDIANSHIP - ADULT",
+    "PR GUARDIANSHIP - MINOR",
+}
+
+ALLOWED_PARTY_CASE_TYPES_NORMALIZED = {
+    normalize_case_type(name) for name in ALLOWED_PARTY_CASE_TYPES
+}
+
 
 def get_driver(headless):
     chrome_options = Options()
@@ -267,7 +337,15 @@ def ensure_search_form_ready(driver, wait, label):
         dump_debug_artifacts(driver, f"form_ready_{label}")
         raise exc
 
-def scrape_court_cases_and_parties(county_name, start_date, continue_search="no", headless="no", filter_case_type="all"):
+def scrape_court_cases_and_parties(
+    county_name,
+    start_date,
+    continue_search="no",
+    headless="no",
+    filter_case_type="all",
+    skip_non_empty=False,
+    force_counties=None,
+):
     init_db()
     session = get_session()
     url = "https://www.courts.mo.gov/cnet/filingDateSearch.do?newSearch=Y"
@@ -351,7 +429,30 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
 
     saved_count = 0
     all_counties_completed = True
+    force_counties = force_counties or []
+
+    def normalize_name(value: str | None) -> str:
+        return (value or "").strip().lower()
+
+    forced_normalized = {normalize_name(name) for name in force_counties}
+
     for county in counties_to_scrape:
+        county_label = county.split(" - ")[0].strip()
+        county_is_forced = (
+            normalize_name(county) in forced_normalized
+            or normalize_name(county_label) in forced_normalized
+        )
+        if skip_non_empty and not county_is_forced:
+            existing_case = (
+                session.query(Case)
+                .filter(Case.location == county_label)
+                .first()
+            )
+            if existing_case:
+                print(
+                    f"[SKIP] County {county} already has stored cases; skipping."
+                )
+                continue
         print(f"[COUNTY] Starting {county}")
         county_start_date = start_date
         consecutive_no_cases = 0
@@ -476,7 +577,7 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
                                     "case_url": case_url,
                                     "style_of_case": columns[3].text.strip(),
                                     "case_type": case_type,
-                                    "location": columns[5].text.strip()
+                                    "location": county_label
                                 }
                                 print(f"Found: {case_number} ({case_type})")
                                 extracted_cases.append(case_entry)
@@ -505,12 +606,21 @@ def scrape_court_cases_and_parties(county_name, start_date, continue_search="no"
                 print(f"Found {len(extracted_cases)} cases for {county_start_date}")
                 # Now scrape party details for each case
                 for case_entry in extracted_cases:
-                    party_details = scrape_party_details(driver, case_entry['case_url'])
                     # Check if case already exists
                     existing_case = session.query(Case).filter_by(case_number=case_entry['case_number']).first()
                     if existing_case:
                         print(f"Case {case_entry['case_number']} already exists, skipping.")
                         continue
+                    case_type_normalized = normalize_case_type(case_entry['case_type'])
+                    should_fetch_parties = case_type_normalized in ALLOWED_PARTY_CASE_TYPES_NORMALIZED
+                    party_details = []
+                    if should_fetch_parties:
+                        party_details = scrape_party_details(driver, case_entry['case_url'])
+                    else:
+                        print(
+                            f"[SKIP] Not fetching parties for {case_entry['case_number']} "
+                            f"({case_entry['case_type']})"
+                        )
                     try:
                         new_case = Case(**case_entry)
                         session.add(new_case)

@@ -106,6 +106,11 @@ def parse_args():
         metavar="NAME=MM/DD/YYYY",
         help="Override start date for specific counties (repeatable, case-insensitive match).",
     )
+    parser.add_argument(
+        "--start-at",
+        default="",
+        help="Begin processing at the first county whose name includes this text (case-insensitive).",
+    )
     return parser.parse_args()
 
 
@@ -123,7 +128,18 @@ def main():
         if not county_name or not override_date:
             raise ValueError(f"--force-county-start entries must include both county and date (got '{entry}')")
         overrides[county_name] = override_date
-    run_queue(ZERO_COUNTIES, args.start_date, continue_flag, headless_flag, overrides)
+    counties = list(ZERO_COUNTIES)
+    start_at = args.start_at.strip().lower()
+    if start_at:
+        for idx, label in enumerate(counties):
+            if start_at in label.lower():
+                if idx > 0:
+                    print(f"[RESUME] Skipping first {idx} counties (starting at '{label}').")
+                counties = counties[idx:]
+                break
+        else:
+            print(f"[WARN] --start-at '{args.start_at}' not found; processing full list.")
+    run_queue(counties, args.start_date, continue_flag, headless_flag, overrides)
 
 
 if __name__ == "__main__":

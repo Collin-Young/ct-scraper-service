@@ -25,6 +25,8 @@ set MO_SCRAPER_PROXY=
 
 REM Use your existing Chrome profile (where you've already passed Cloudflare)
 set MO_SCRAPER_PROFILE_DIR=%LOCALAPPDATA%\Google\Chrome\User Data
+REM Don't copy the profile, use it directly (faster and avoids file locks)
+set MO_SCRAPER_PROFILE_COPY=false
 
 REM Set headless mode (yes or no)
 set MO_SCRAPER_HEADLESS=no

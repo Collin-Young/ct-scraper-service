@@ -416,7 +416,7 @@ def scrape_court_cases_and_parties(
     url = "https://www.courts.mo.gov/casenet/filingDateSearch.do?newSearch=Y"
     driver = get_driver(headless)
     wait = WebDriverWait(driver, DEFAULT_WAIT_SECONDS)
-    use_current_remote_page_once = bool(os.environ.get('MO_SCRAPER_REMOTE_DEBUGGING_PORT'))
+    remote_debugging_enabled = bool(os.environ.get('MO_SCRAPER_REMOTE_DEBUGGING_PORT'))
 
     DROPDOWN_OPTIONS_FILE = os.path.join(STATIC_DIR, "dropdown_options.json")
     dropdown_df = pd.read_json(DROPDOWN_OPTIONS_FILE)
@@ -540,13 +540,12 @@ def scrape_court_cases_and_parties(
             for attempt in range(3):
                 attempt_num = attempt + 1
                 use_current_page = (
-                    use_current_remote_page_once
+                    remote_debugging_enabled
                     and attempt == 0
                     and 'filingDateSearch.do' in (driver.current_url or '')
                 )
                 if use_current_page:
                     print("[DEBUG] Using current remote browser page")
-                    use_current_remote_page_once = False
                 elif attempt == 0:
                     print("[DEBUG] Loading search form")
                 else:
@@ -736,6 +735,16 @@ def scrape_court_cases_and_parties(
                 break
 
             if continue_search == 'continue':
+                if remote_debugging_enabled:
+                    for back_attempt in range(1, 4):
+                        try:
+                            print(f"[DEBUG] Returning to search form via browser history (attempt {back_attempt})")
+                            driver.back()
+                            human_delay(1.5, 2.5)
+                            ensure_search_form_ready(driver, wait, f"history_back_{form_label}_{back_attempt}")
+                            break
+                        except Exception as back_error:
+                            print(f"[WARN] Browser history did not return to search form: {back_error}")
                 print(f"Updating to next date from {county_start_date}")
                 try:
                     dt = datetime.strptime(county_start_date, '%m/%d/%Y')

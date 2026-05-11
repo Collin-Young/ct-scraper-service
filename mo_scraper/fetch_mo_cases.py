@@ -413,9 +413,10 @@ def scrape_court_cases_and_parties(
 ):
     init_db()
     session = get_session()
-    url = "https://www.courts.mo.gov/cnet/filingDateSearch.do?newSearch=Y"
+    url = "https://www.courts.mo.gov/casenet/filingDateSearch.do?newSearch=Y"
     driver = get_driver(headless)
     wait = WebDriverWait(driver, DEFAULT_WAIT_SECONDS)
+    use_current_remote_page_once = bool(os.environ.get('MO_SCRAPER_REMOTE_DEBUGGING_PORT'))
 
     DROPDOWN_OPTIONS_FILE = os.path.join(STATIC_DIR, "dropdown_options.json")
     dropdown_df = pd.read_json(DROPDOWN_OPTIONS_FILE)
@@ -538,11 +539,19 @@ def scrape_court_cases_and_parties(
             form_ready = False
             for attempt in range(3):
                 attempt_num = attempt + 1
-                if attempt == 0:
+                use_current_page = (
+                    use_current_remote_page_once
+                    and attempt == 0
+                    and 'filingDateSearch.do' in (driver.current_url or '')
+                )
+                if use_current_page:
+                    print("[DEBUG] Using current remote browser page")
+                    use_current_remote_page_once = False
+                elif attempt == 0:
                     print("[DEBUG] Loading search form")
                 else:
                     print(f"[DEBUG] Reloading search form (attempt {attempt_num})")
-                if not load_url_with_retries(driver, url, f"search_form_{form_label}_attempt{attempt_num}"):
+                if not use_current_page and not load_url_with_retries(driver, url, f"search_form_{form_label}_attempt{attempt_num}"):
                     human_delay(2.0, 4.0)
                     continue
                 try:

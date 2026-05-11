@@ -1,0 +1,53 @@
+[
+    {
+        "domain": ".courts.mo.gov",
+        "expirationDate": 1778537864.207705,
+        "hostOnly": false,
+        "httpOnly": true,
+        "name": "__cf_bm",
+        "path": "/",
+        "sameSite": "no_restriction",
+        "secure": true,
+        "session": false,
+        "storeId": null,
+        "value": "p5N95ENLIdlQpDwjxA2GyvmQa7wtsYUJ76cX7.oZCXw-1778536064.2317379-1.0.1.1-HCUD7r9pwR.peNHYcOPL5iMBFFGBYdE5HWGKAEAA012wGgyUOuRjg2Cfnan0_EEy4LTAF4iUrHGomAdH0jI5yh0_OqTIQsTXQpNyzoKwhkwFHvg_qU97djSDn8gBbFqU"
+    },
+    {
+        "domain": "www.courts.mo.gov",
+        "hostOnly": true,
+        "httpOnly": true,
+        "name": "JSESSIONID",
+        "path": "/casenet",
+        "sameSite": null,
+        "secure": true,
+        "session": true,
+        "storeId": null,
+        "value": "9FB941E0FE67403180F785D7BFBD68CE"
+    },
+    {
+        "domain": ".courts.mo.gov",
+        "expirationDate": 1810072062.397876,
+        "hostOnly": false,
+        "httpOnly": false,
+        "name": "UJIA",
+        "path": "/",
+        "sameSite": null,
+        "secure": true,
+        "session": false,
+        "storeId": null,
+        "value": "-2009198611"
+    },
+    {
+        "domain": ".courts.mo.gov",
+        "expirationDate": 1810072062.397794,
+        "hostOnly": false,
+        "httpOnly": false,
+        "name": "UJID",
+        "path": "/",
+        "sameSite": null,
+        "secure": true,
+        "session": false,
+        "storeId": null,
+        "value": "4fcf0f6b-570d-40a9-80f6-28fd1533d664"
+    }
+]

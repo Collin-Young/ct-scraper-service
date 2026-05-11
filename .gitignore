@@ -1,8 +1,46 @@
+# Python
 __pycache__/
 *.py[cod]
-.env
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
 .venv/
-.data/
-data/
-*.db
+venv/
+env/
 
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Debug artifacts
+mo_scraper/debug_artifacts/
+debug_artifacts/
+
+# Database files
+*.db
+*.db-journal
+
+# Environment files
+.env
+.env.local
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary
+temp/
+tmp/
+*.tmp

@@ -162,36 +162,32 @@ def human_delay(min_seconds: float | None = None, max_seconds: float | None = No
 def simulate_human_behavior(driver):
     """Simulate human-like behavior to avoid bot detection."""
     try:
-        # Get viewport dimensions safely
-        viewport_width = driver.execute_script("return window.innerWidth;")
-        viewport_height = driver.execute_script("return window.innerHeight;")
-        
-        # Random mouse movements within viewport bounds
-        actions = webdriver.ActionChains(driver)
-        for _ in range(random.randint(2, 4)):
-            # Keep movements within viewport, starting from current position
-            x = random.randint(-200, 200)
-            y = random.randint(-150, 150)
-            actions.move_by_offset(x, y).perform()
-            time.sleep(random.uniform(0.1, 0.3))
-        
-        # Scroll randomly (small amounts)
+        # Scroll randomly (small amounts) - safest interaction
         scroll_amount = random.randint(50, 200)
         driver.execute_script(f"window.scrollBy(0, {scroll_amount});")
         time.sleep(random.uniform(0.2, 0.4))
         
         # Scroll back up sometimes
         if random.random() > 0.5:
-            driver.execute_script(f"window.scrollBy(0, -{random.randint(30, scroll_amount)});")
+            driver.execute_script(f"window.scrollBy(0, -{random.randint(30, min(100, scroll_amount))});")
             time.sleep(random.uniform(0.2, 0.4))
         
-        # Move mouse to a random position within viewport
+        # Try mouse movement only if page has loaded and is ready
         try:
-            safe_x = random.randint(100, min(800, viewport_width - 100))
-            safe_y = random.randint(100, min(600, viewport_height - 100))
+            # Reset mouse position to top-left corner first
             actions = webdriver.ActionChains(driver)
-            actions.move_to_element_with_offset(driver.find_element(By.TAG_NAME, "body"), safe_x, safe_y).perform()
-        except:
+            actions.move_by_offset(0, 0).perform()
+            time.sleep(0.1)
+            
+            # Small, safe mouse movements
+            for _ in range(random.randint(1, 2)):
+                x = random.randint(10, 100)
+                y = random.randint(10, 100)
+                actions = webdriver.ActionChains(driver)
+                actions.move_by_offset(x, y).perform()
+                time.sleep(random.uniform(0.1, 0.2))
+        except Exception as mouse_error:
+            # Mouse movement failed, but that's okay
             pass
             
     except Exception as e:
@@ -199,34 +195,39 @@ def simulate_human_behavior(driver):
 
 
 def get_driver(headless):
-    # Use undetected-chromedriver if available (better bot detection bypass)
+    # Use undetected-chromedriver if available and not on ARM architecture
     if UNDETECTED_AVAILABLE and not os.environ.get('MO_SCRAPER_REMOTE_DEBUGGING_PORT'):
-        print("[DEBUG] Using undetected-chromedriver for better bot detection bypass")
-        try:
-            uc_options = uc.ChromeOptions()
-            uc_options.add_argument('--no-sandbox')
-            uc_options.add_argument('--disable-dev-shm-usage')
-            uc_options.add_argument('--disable-gpu')
-            uc_options.add_argument('--lang=en-US')
-            uc_options.add_argument('--window-size=1920,1080')
-            
-            headless_flag = headless.lower() == 'headless'
-            if headless_flag:
-                uc_options.add_argument('--headless=new')
-                print('Running in headless mode.')
-            else:
-                print('Running in non-headless mode.')
-            
-            chromium_binary = os.environ.get('MO_SCRAPER_CHROMIUM_BINARY')
-            if chromium_binary and os.path.exists(chromium_binary):
-                uc_options.binary_location = chromium_binary
-                print(f"[DEBUG] Using Chromium binary: {chromium_binary}")
-            
-            driver = uc.Chrome(options=uc_options, version_main=None)
-            driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
-            return driver
-        except Exception as e:
-            print(f"[WARN] Failed to use undetected-chromedriver: {e}. Falling back to regular Chrome.")
+        # Check if we're on ARM (Raspberry Pi) - undetected-chromedriver doesn't support ARM
+        import platform
+        if 'arm' not in platform.machine().lower():
+            print("[DEBUG] Using undetected-chromedriver for better bot detection bypass")
+            try:
+                uc_options = uc.ChromeOptions()
+                uc_options.add_argument('--no-sandbox')
+                uc_options.add_argument('--disable-dev-shm-usage')
+                uc_options.add_argument('--disable-gpu')
+                uc_options.add_argument('--lang=en-US')
+                uc_options.add_argument('--window-size=1920,1080')
+                
+                headless_flag = headless.lower() == 'headless'
+                if headless_flag:
+                    uc_options.add_argument('--headless=new')
+                    print('Running in headless mode.')
+                else:
+                    print('Running in non-headless mode.')
+                
+                chromium_binary = os.environ.get('MO_SCRAPER_CHROMIUM_BINARY')
+                if chromium_binary and os.path.exists(chromium_binary):
+                    uc_options.binary_location = chromium_binary
+                    print(f"[DEBUG] Using Chromium binary: {chromium_binary}")
+                
+                driver = uc.Chrome(options=uc_options, version_main=None)
+                driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
+                return driver
+            except Exception as e:
+                print(f"[WARN] Failed to use undetected-chromedriver: {e}. Falling back to regular Chrome.")
+        else:
+            print("[DEBUG] undetected-chromedriver not supported on ARM architecture, using regular Chrome")
     
     # Fallback to regular Chrome with anti-detection measures
     print("[DEBUG] Using regular Chrome with anti-detection measures")

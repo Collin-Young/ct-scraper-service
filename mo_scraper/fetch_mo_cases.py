@@ -292,10 +292,18 @@ def get_driver(headless):
             display_proxy = proxy_server_arg
         chrome_options.add_argument(f'--proxy-server={proxy_server_arg}')
         chrome_options.add_argument('--proxy-bypass-list=<-loopback>')
+        # Bright Data SSL certificate handling
+        chrome_options.add_argument('--ignore-certificate-errors')
+        chrome_options.add_argument('--ignore-ssl-errors')
+        # Optional: Load Bright Data SSL certificate if provided
+        ssl_cert_path = os.environ.get('MO_SCRAPER_SSL_CERT')
+        if ssl_cert_path and os.path.exists(ssl_cert_path):
+            chrome_options.add_argument(f'--ssl-client-certificate={ssl_cert_path}')
         if parsed_proxy.username and parsed_proxy.password:
             credentials = f"{parsed_proxy.username}:{parsed_proxy.password}"
             proxy_auth_header = 'Basic ' + base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
         print(f"[DEBUG] Routing traffic through proxy: {display_proxy}")
+        print(f"[DEBUG] SSL certificate errors will be ignored (required for Bright Data)")
 
     headless_flag = headless.lower() == 'headless'
     if remote_debug_port:

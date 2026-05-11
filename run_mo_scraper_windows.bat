@@ -6,7 +6,7 @@ set COUNTY=%1
 if "%COUNTY%"=="" set COUNTY=all
 
 set START_DATE=%2
-if "%START_DATE%"=="" set START_DATE=01/01/2025
+if "%START_DATE%"=="" set START_DATE=01/01/2026
 
 set CONTINUE=%3
 if "%CONTINUE%"=="" set CONTINUE=continue

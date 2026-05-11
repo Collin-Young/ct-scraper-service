@@ -35,7 +35,7 @@ echo "Make sure Chrome is running on Windows with:"
 echo "  chrome.exe --user-data-dir=\"%LOCALAPPDATA%\\Google\\Chrome\\User Data\" --remote-debugging-port=9222"
 echo ""
 
-cd /home/pi/ct-scraper-service
+cd /home/raspberry/ct-scraper-service
 source .venv/bin/activate
 python mo_scraper/fetch_mo_cases.py "$COUNTY" "$START_DATE" "$CONTINUE"
 

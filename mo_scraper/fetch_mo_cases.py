@@ -30,6 +30,9 @@ except ImportError:
     UNDETECTED_AVAILABLE = False
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+COOKIES_FILE = os.path.join(BASE_DIR, 'browser_cookies.json')
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 DEBUG_DIR = os.path.join(BASE_DIR, 'debug_artifacts')
 PROGRESS_FILE = os.path.join(BASE_DIR, 'mo_scraper_county_progress.txt')
@@ -157,6 +160,30 @@ def human_delay(min_seconds: float | None = None, max_seconds: float | None = No
     if upper < lower:
         upper = lower
     time.sleep(random.uniform(lower, upper))
+
+
+def load_cookies_from_file(driver, url):
+    """Load cookies from JSON file to bypass bot detection."""
+    if os.path.exists(COOKIES_FILE):
+        try:
+            with open(COOKIES_FILE, 'r') as f:
+                cookies = json.load(f)
+            for cookie in cookies:
+                try:
+                    # Remove sameSite if present (causes issues in Selenium)
+                    if 'sameSite' in cookie:
+                        del cookie['sameSite']
+                    driver.add_cookie(cookie)
+                except Exception as e:
+                    print(f"[DEBUG] Failed to add cookie: {e}")
+            print(f"[DEBUG] Loaded {len(cookies)} cookies from {COOKIES_FILE}")
+            return True
+        except Exception as e:
+            print(f"[WARN] Failed to load cookies: {e}")
+    else:
+        print(f"[INFO] No cookies file found at {COOKIES_FILE}")
+        print(f"[INFO] To create one, see instructions in the code comments")
+    return False
 
 
 def simulate_human_behavior(driver):
@@ -455,6 +482,15 @@ def load_url_with_retries(driver, url, label, retries=NAV_RETRY_ATTEMPTS, wait_s
     for attempt in range(1, retries + 1):
         try:
             print(f"[DEBUG] Loading {label} (attempt {attempt}/{retries})")
+            
+            # Load cookies before navigating (first attempt only)
+            if attempt == 1:
+                # Navigate to domain first (required for adding cookies)
+                domain = url.split('/')[2]
+                driver.get(f"https://{domain}")
+                load_cookies_from_file(driver, url)
+                human_delay(1.0, 2.0)
+            
             driver.get(url)
             
             # Simulate human behavior after page load

@@ -498,7 +498,14 @@ def get_driver(headless):
 
     if remote_debug_port:
         driver = webdriver.Chrome(service=service, options=chrome_options)
+    elif UNDETECTED_AVAILABLE:
+        # Use undetected-chromedriver for better bot detection bypass
+        print("[DEBUG] Using undetected-chromedriver for better bot detection bypass")
+        # Remove options that conflict with undetected-chromedriver
+        chrome_options.add_argument('--no-sandbox')  # Needed for undetected-chromedriver
+        driver = uc.Chrome(service=service, options=chrome_options)
     else:
+        print("[DEBUG] Using regular Chrome with anti-detection measures")
         driver = webdriver.Chrome(service=service, options=chrome_options)
     if proxy_auth_header:
         driver.execute_cdp_cmd('Network.enable', {})

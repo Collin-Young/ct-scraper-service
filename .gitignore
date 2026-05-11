@@ -25,6 +25,10 @@ debug_artifacts/
 *.db
 *.db-journal
 
+# Large CSV files
+*.csv
+data/*.csv
+
 # Environment files
 .env
 .env.local

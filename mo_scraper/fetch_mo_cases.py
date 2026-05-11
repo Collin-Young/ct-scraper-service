@@ -296,10 +296,19 @@ def get_driver(headless):
         # Bright Data SSL certificate handling
         chrome_options.add_argument('--ignore-certificate-errors')
         chrome_options.add_argument('--ignore-ssl-errors')
-        # Optional: Load Bright Data SSL certificate if provided
+        # Load Bright Data SSL certificate - try multiple locations
         ssl_cert_path = os.environ.get('MO_SCRAPER_SSL_CERT')
+        if not ssl_cert_path:
+            # Try default location in mo_scraper directory
+            default_cert = os.path.join(BASE_DIR, 'brightdata_cert.crt')
+            if os.path.exists(default_cert):
+                ssl_cert_path = default_cert
         if ssl_cert_path and os.path.exists(ssl_cert_path):
             chrome_options.add_argument(f'--ssl-client-certificate={ssl_cert_path}')
+            print(f"[DEBUG] Using SSL certificate: {ssl_cert_path}")
+        else:
+            print(f"[WARN] Bright Data SSL certificate not found. Will ignore SSL errors.")
+            print(f"[WARN] For better reliability, place 'brightdata_cert.crt' in {BASE_DIR}")
         if parsed_proxy.username and parsed_proxy.password:
             credentials = f"{parsed_proxy.username}:{parsed_proxy.password}"
             proxy_auth_header = 'Basic ' + base64.b64encode(credentials.encode('utf-8')).decode('utf-8')

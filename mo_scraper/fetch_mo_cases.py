@@ -39,7 +39,15 @@ BLOCK_PAGE_PATTERNS = (
     'access denied',
     'missouri judicial website',
     'site data scraper',
-    'case.net'
+    'case.net',
+    'cloudflare',
+    'please stand by',
+    'checking your browser before accessing',
+    'ddos protection',
+    'security check',
+    'automated access is not allowed',
+    'unusual traffic',
+    'suspicious activity',
 )
 
 
@@ -137,11 +145,51 @@ def prepare_profile_dir(profile_dir: str) -> str:
 
 
 def human_delay(min_seconds: float | None = None, max_seconds: float | None = None) -> None:
-    lower = float(os.environ.get('MO_SCRAPER_HUMAN_DELAY_MIN', '1.0')) if min_seconds is None else min_seconds
-    upper = float(os.environ.get('MO_SCRAPER_HUMAN_DELAY_MAX', '2.5')) if max_seconds is None else max_seconds
+    lower = float(os.environ.get('MO_SCRAPER_HUMAN_DELAY_MIN', '2.0')) if min_seconds is None else min_seconds
+    upper = float(os.environ.get('MO_SCRAPER_HUMAN_DELAY_MAX', '5.0')) if max_seconds is None else max_seconds
     if upper < lower:
         upper = lower
     time.sleep(random.uniform(lower, upper))
+
+
+def simulate_human_behavior(driver):
+    """Simulate human-like behavior to avoid bot detection."""
+    try:
+        # Random mouse movements
+        actions = webdriver.ActionChains(driver)
+        for _ in range(random.randint(3, 7)):
+            x = random.randint(100, 1000)
+            y = random.randint(100, 700)
+            actions.move_by_offset(x, y).perform()
+            time.sleep(random.uniform(0.1, 0.4))
+        
+        # Scroll randomly
+        scroll_amount = random.randint(100, 500)
+        driver.execute_script(f"window.scrollBy(0, {scroll_amount});")
+        time.sleep(random.uniform(0.3, 0.7))
+        
+        # Scroll back up sometimes
+        if random.random() > 0.4:
+            driver.execute_script(f"window.scrollBy(0, -{random.randint(50, scroll_amount)});")
+            time.sleep(random.uniform(0.2, 0.6))
+        
+        # Random click on empty space (non-interactive)
+        try:
+            driver.execute_script("""
+                var evt = new MouseEvent('click', {
+                    view: window,
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: arguments[0],
+                    clientY: arguments[1]
+                });
+                document.body.dispatchEvent(evt);
+            """, random.randint(200, 600), random.randint(200, 400))
+        except:
+            pass
+            
+    except Exception as e:
+        print(f"[DEBUG] Human behavior simulation error (non-critical): {e}")
 
 
 def get_driver(headless):
@@ -161,10 +209,23 @@ def get_driver(headless):
         'MO_SCRAPER_USER_AGENT',
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
         'AppleWebKit/537.36 (KHTML, like Gecko) '
-        'Chrome/125.0.0.0 Safari/537.36'
+        'Chrome/131.0.0.0 Safari/537.36'
     )
     chrome_options.add_argument(f'--user-agent={user_agent}')
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+    # Additional anti-detection arguments
+    chrome_options.add_argument('--disable-blink-features')
+    chrome_options.add_argument('--disable-infobars')
+    chrome_options.add_argument('--disable-notifications')
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_argument('--no-first-run')
+    chrome_options.add_argument('--no-service-autorun')
+    chrome_options.add_argument('--no-default-browser-check')
+    chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+    chrome_options.add_argument('--disable-renderer-backgrounding')
+    chrome_options.add_argument('--disable-background-networking')
+    chrome_options.add_argument('--disable-component-extensions-with-background-pages')
+    chrome_options.add_argument('--disable-features=IsolateOrigins,site-per-process')
     remote_debug_port = os.environ.get('MO_SCRAPER_REMOTE_DEBUGGING_PORT')
     if not remote_debug_port:
         chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
@@ -260,10 +321,74 @@ def get_driver(headless):
         'Page.addScriptToEvaluateOnNewDocument',
         {
             'source': '''
+                // Override webdriver property
                 Object.defineProperty(navigator, "webdriver", {get: () => undefined});
+                
+                // Mock Chrome runtime
                 window.navigator.chrome = { runtime: {} };
+                
+                // Set languages
                 Object.defineProperty(navigator, "languages", { get: () => ['en-US', 'en'] });
+                
+                // Mock plugins
                 Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3] });
+                
+                // Override permissions
+                const originalQuery = window.navigator.permissions.query;
+                window.navigator.permissions.query = (parameters) => (
+                    parameters.name === 'notifications' ?
+                        Promise.resolve({ state: Notification.permission }) :
+                        originalQuery(parameters)
+                );
+                
+                // Override chrome detection
+                window.chrome = { runtime: {} };
+                
+                // Remove automation indicators
+                delete navigator.__proto__.webdriver;
+                
+                // Override iframe contentWindow
+                Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', {
+                    get() {
+                        return window;
+                    }
+                });
+                
+                // Canvas fingerprinting protection
+                const getImageData = HTMLCanvasElement.prototype.getContext('2d').getImageData;
+                HTMLCanvasElement.prototype.getContext('2d').getImageData = function(sx, sy, sw, sh) {
+                    const imageData = getImageData.apply(this, arguments);
+                    for (let i = 0; i < imageData.data.length; i += 4) {
+                        imageData.data[i] = imageData.data[i] + Math.floor(Math.random() * 10) - 5;
+                        imageData.data[i + 1] = imageData.data[i + 1] + Math.floor(Math.random() * 10) - 5;
+                        imageData.data[i + 2] = imageData.data[i + 2] + Math.floor(Math.random() * 10) - 5;
+                    }
+                    return imageData;
+                };
+                
+                // WebGL fingerprinting protection
+                const getParameter = WebGLRenderingContext.prototype.getParameter;
+                WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                    if (parameter === 37445) {
+                        return 'Intel Inc.';
+                    }
+                    if (parameter === 37446) {
+                        return 'Intel(R) Iris(TM) Graphics 6100';
+                    }
+                    return getParameter.apply(this, arguments);
+                };
+                
+                // Override screen properties
+                Object.defineProperty(screen, 'width', { get: () => 1920 });
+                Object.defineProperty(screen, 'height', { get: () => 1080 });
+                Object.defineProperty(screen, 'availWidth', { get: () => 1920 });
+                Object.defineProperty(screen, 'availHeight', { get: () => 1040 });
+                
+                // Override hardware concurrency
+                Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+                
+                // Override device memory
+                Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
             '''
         },
     )
@@ -274,12 +399,28 @@ def get_driver(headless):
 def load_url_with_retries(driver, url, label, retries=NAV_RETRY_ATTEMPTS, wait_seconds=NAV_RETRY_WAIT_SECONDS):
     for attempt in range(1, retries + 1):
         try:
+            print(f"[DEBUG] Loading {label} (attempt {attempt}/{retries})")
             driver.get(url)
-            if is_block_page(driver.page_source):
+            
+            # Simulate human behavior after page load
+            human_delay(1.0, 3.0)
+            simulate_human_behavior(driver)
+            
+            # Check for block page
+            page_source = driver.page_source.lower()
+            if is_block_page(page_source):
                 print(f"[BLOCK] Detected a bot-block page after loading {label}.")
-                dump_debug_artifacts(driver, f"blocked_{label}")
-                return False
+                dump_debug_artifacts(driver, f"blocked_{label}_attempt{attempt}")
+                
+                # If blocked, wait longer and try with a different approach
+                if attempt < retries:
+                    backoff_time = wait_seconds * attempt * 2
+                    print(f"[BLOCK] Waiting {backoff_time} seconds before retry...")
+                    time.sleep(backoff_time)
+                continue
+                
             return True
+            
         except TimeoutException as exc:
             print(f"[TIMEOUT] {label} attempt {attempt}/{retries}: {exc}")
             try:
@@ -288,8 +429,13 @@ def load_url_with_retries(driver, url, label, retries=NAV_RETRY_ATTEMPTS, wait_s
                 pass
         except Exception as exc:
             print(f"[ERROR] {label} attempt {attempt}/{retries}: {exc}")
+        
         if attempt < retries:
-            time.sleep(wait_seconds * attempt)
+            backoff_time = wait_seconds * attempt
+            print(f"[RETRY] Waiting {backoff_time} seconds before next attempt...")
+            time.sleep(backoff_time)
+    
+    print(f"[ERROR] Failed to load {label} after {retries} attempts.")
     return False
 
 def scrape_party_details(driver, url):
@@ -390,11 +536,37 @@ def is_block_page(page_source):
 
 def ensure_search_form_ready(driver, wait, label):
     try:
+        # Wait for page to fully load
         wait.until(lambda drv: drv.execute_script("return document.readyState") == "complete")
+        
+        # Check for block page first
+        if is_block_page(driver.page_source):
+            print(f"[BLOCK] Detected block page in ensure_search_form_ready for {label}")
+            dump_debug_artifacts(driver, f"blocked_form_{label}")
+            return False
+        
+        # Simulate human behavior while waiting
+        human_delay(0.5, 1.5)
+        
+        # Wait for main content
         wait.until(EC.presence_of_element_located((By.ID, "mainContent")))
+        
+        # Simulate a bit more human behavior
+        human_delay(0.3, 1.0)
+        
+        # Wait for court code dropdown
         wait.until(EC.visibility_of_element_located((By.ID, "courtCode")))
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#courtCode option[value]")))
+        
+        # Small delay before checking button
+        human_delay(0.3, 0.8)
+        
+        # Wait for find button to be clickable
         wait.until(EC.element_to_be_clickable((By.ID, "findButton")))
+        
+        # Final human behavior simulation
+        simulate_human_behavior(driver)
+        
         return True
     except TimeoutException as exc:
         print("[TIMEOUT] Search form did not become ready in time.")

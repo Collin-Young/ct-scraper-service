@@ -65,6 +65,27 @@ BLOCK_PAGE_PATTERNS = (
     'suspicious activity',
 )
 
+def is_block_page(page_source):
+    """Check if page source contains block page patterns."""
+    if not page_source:
+        return False
+    page_lower = page_source.lower()
+    # Require multiple indicators for accuracy
+    matches = sum(1 for pattern in BLOCK_PAGE_PATTERNS if pattern in page_lower)
+    # Need at least 2 patterns or specific strong indicators
+    if matches >= 2:
+        return True
+    # Strong single indicators
+    strong_indicators = [
+        'verify you are a human',
+        'checking your browser before accessing',
+        'automated access is not allowed',
+    ]
+    for indicator in strong_indicators:
+        if indicator in page_lower:
+            return True
+    return False
+
 
 def is_debugger_port_reachable(address: str, timeout: float = 3.0) -> bool:
     try:
@@ -138,8 +159,7 @@ def wait_for_block_clear(driver, wait, max_wait_minutes=MAX_BLOCK_WAIT_MINUTES):
     
     while time.time() - start_time < max_wait_seconds:
         try:
-            driver.get(url)
-            time.sleep(5)
+            # Don't reload the page - let undetected-chromedriver handle it
             page_source = driver.page_source.lower()
             
             if not is_block_page(page_source):
@@ -147,12 +167,12 @@ def wait_for_block_clear(driver, wait, max_wait_minutes=MAX_BLOCK_WAIT_MINUTES):
                 return True
             
             elapsed = int((time.time() - start_time) / 60)
-            print(f"[BLOCK] Still blocked... ({elapsed} min elapsed, checking again in {BLOCK_CHECK_INTERVAL}s)")
-            time.sleep(BLOCK_CHECK_INTERVAL)
+            print(f"[BLOCK] Still blocked... ({elapsed} min elapsed, waiting 60s for undetected-chromedriver to solve...)")
+            time.sleep(60)  # Wait longer for undetected-chromedriver to solve Cloudflare
             
         except Exception as e:
             print(f"[BLOCK] Error checking block status: {e}")
-            time.sleep(BLOCK_CHECK_INTERVAL)
+            time.sleep(60)
     
     print(f"[BLOCK] Timeout: Block not cleared after {max_wait_minutes} minutes")
     return False

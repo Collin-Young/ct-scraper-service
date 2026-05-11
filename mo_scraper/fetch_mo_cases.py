@@ -360,12 +360,15 @@ def get_driver(headless):
 
     headless_flag = headless.lower() == 'headless'
     if remote_debug_port:
-        debugger_address = f'127.0.0.1:{remote_debug_port}'
+        # Use custom address if provided, otherwise default to localhost
+        remote_debug_address = os.environ.get('MO_SCRAPER_REMOTE_DEBUGGING_ADDRESS', '127.0.0.1')
+        debugger_address = f'{remote_debug_address}:{remote_debug_port}'
         if not is_debugger_port_reachable(debugger_address):
             raise RuntimeError(
                 f"MO_SCRAPER_REMOTE_DEBUGGING_PORT={remote_debug_port} set, "
                 f"but Chrome is not reachable at {debugger_address}. "
-                "Start Chrome with --remote-debugging-port=9222 and ensure the browser is running."
+                f"Start Chrome with --remote-debugging-port={remote_debug_port} and ensure the browser is running. "
+                f"Set MO_SCRAPER_REMOTE_DEBUGGING_ADDRESS if Chrome is on a different machine."
             )
         chrome_options.debugger_address = debugger_address
         print(f"[DEBUG] Connecting to existing Chrome via remote debugger at {debugger_address}")

@@ -26,8 +26,10 @@ from mo_scraper.models import Case, Party
 try:
     import undetected_chromedriver as uc
     UNDETECTED_AVAILABLE = True
+    print("[DEBUG] undetected-chromedriver imported successfully")
 except ImportError:
     UNDETECTED_AVAILABLE = False
+    print("[DEBUG] undetected-chromedriver not available")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 COOKIES_FILE = os.path.join(BASE_DIR, 'browser_cookies.json')

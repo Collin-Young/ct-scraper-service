@@ -168,15 +168,31 @@ def load_cookies_from_file(driver, url):
         try:
             with open(COOKIES_FILE, 'r') as f:
                 cookies = json.load(f)
+            
+            # Navigate to the main domain first (required for adding cookies)
+            print(f"[DEBUG] Navigating to domain to load cookies...")
+            driver.get("https://www.courts.mo.gov/casenet/filingDateSearch.do?newSearch=Y")
+            time.sleep(2)
+            
+            # Add cookies one by one with error handling
+            loaded_count = 0
             for cookie in cookies:
                 try:
-                    # Remove sameSite if present (causes issues in Selenium)
-                    if 'sameSite' in cookie:
-                        del cookie['sameSite']
-                    driver.add_cookie(cookie)
+                    # Prepare cookie for Selenium - must match current domain
+                    cookie_dict = {
+                        'name': cookie['name'],
+                        'value': cookie['value'],
+                        'domain': cookie['domain'],
+                        'path': cookie.get('path', '/'),
+                    }
+                    # Remove sameSite (causes issues in Selenium)
+                    # Don't add secure flag - let Selenium handle it
+                    driver.add_cookie(cookie_dict)
+                    loaded_count += 1
                 except Exception as e:
-                    print(f"[DEBUG] Failed to add cookie: {e}")
-            print(f"[DEBUG] Loaded {len(cookies)} cookies from {COOKIES_FILE}")
+                    # Ignore cookie errors - some may not apply to current domain
+                    pass
+            print(f"[DEBUG] Loaded {loaded_count}/{len(cookies)} cookies from {COOKIES_FILE}")
             return True
         except Exception as e:
             print(f"[WARN] Failed to load cookies: {e}")

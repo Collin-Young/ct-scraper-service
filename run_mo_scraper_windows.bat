@@ -23,6 +23,9 @@ echo.
 REM Disable proxy until Bright Data KYC is approved
 set MO_SCRAPER_PROXY=
 
+REM Use your existing Chrome profile (where you've already passed Cloudflare)
+set MO_SCRAPER_PROFILE_DIR=%LOCALAPPDATA%\Google\Chrome\User Data
+
 REM Set headless mode (yes or no)
 set MO_SCRAPER_HEADLESS=no
 

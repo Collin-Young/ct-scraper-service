@@ -45,38 +45,29 @@ PAGE_LOAD_TIMEOUT = int(os.environ.get('MO_SCRAPER_PAGE_LOAD_TIMEOUT', '180'))
 NAV_RETRY_ATTEMPTS = int(os.environ.get('MO_SCRAPER_NAV_RETRIES', '5'))
 NAV_RETRY_WAIT_SECONDS = int(os.environ.get('MO_SCRAPER_NAV_RETRY_WAIT', '10'))
 DEFAULT_WAIT_SECONDS = int(os.environ.get('MO_SCRAPER_WAIT_SECONDS', '60'))
+# Only include STRONG Cloudflare block indicators - not legitimate page content
 BLOCK_PAGE_PATTERNS = (
     'verify you are a human',
-    'checking your browser',
-    'just a moment',
-    'attention required',
-    'enable javascript to use',
-    'access denied',
-    'missouri judicial website',
-    'site data scraper',
-    'case.net',
-    'cloudflare',
-    'please stand by',
     'checking your browser before accessing',
+    'just a moment',
     'ddos protection',
-    'security check',
     'automated access is not allowed',
-    'unusual traffic',
-    'suspicious activity',
+    'cloudflare ray id',
+    'please stand by, loading',
 )
+ 
 
 def is_block_page(page_source):
     """Check if page source contains block page patterns."""
     if not page_source:
         return False
     page_lower = page_source.lower()
-    # Require multiple indicators for accuracy
-    matches = sum(1 for pattern in BLOCK_PAGE_PATTERNS if pattern in page_lower)
-    # Need at least 2 patterns or specific strong indicators
-    if matches >= 2:
-        return True
-    # Strong single indicators
+    # Check for VERY specific block page text unique to MO block page
+    # The MO block page says: "Access to any Missouri judicial website...
+    # by a site data scraper... is expressly prohibited"
     strong_indicators = [
+        'site data scraper',
+        'expressly prohibited',
         'verify you are a human',
         'checking your browser before accessing',
         'automated access is not allowed',
@@ -85,8 +76,9 @@ def is_block_page(page_source):
         if indicator in page_lower:
             return True
     return False
+ 
 
-
+ 
 def is_debugger_port_reachable(address: str, timeout: float = 3.0) -> bool:
     try:
         host, port_text = address.split(':', 1)
@@ -138,11 +130,6 @@ def clear_scraping_state():
         except Exception as e:
             print(f"[WARN] Failed to clear state: {e}")
 
-
-def is_block_page(page_source):
-    """Check if page source contains block page patterns."""
-    page_lower = page_source.lower()
-    return any(pattern in page_lower for pattern in BLOCK_PAGE_PATTERNS)
 
 
 def wait_for_block_clear(driver, wait, max_wait_minutes=MAX_BLOCK_WAIT_MINUTES):
@@ -269,7 +256,10 @@ def human_delay(min_seconds: float | None = None, max_seconds: float | None = No
     time.sleep(random.uniform(lower, upper))
 
 
-def load_cookies_from_file(driver, url):
+def load_cookies_from_file(driver, url):  # DISABLED
+    print("[DEBUG] Cookie loading disabled")
+    return False
+    # DISABLED:
     """Load cookies from JSON file to bypass bot detection."""
     if os.path.exists(COOKIES_FILE):
         try:
@@ -753,9 +743,6 @@ def dump_debug_artifacts(driver, label):
         print(f"[WARN] Unable to persist debug artifacts: {debug_error}")
 
 
-def is_block_page(page_source):
-    lowered = page_source.lower()
-    return any(pattern in lowered for pattern in BLOCK_PAGE_PATTERNS)
 
 
 def ensure_search_form_ready(driver, wait, label):

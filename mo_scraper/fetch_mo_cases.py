@@ -36,6 +36,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 DEBUG_DIR = os.path.join(BASE_DIR, 'debug_artifacts')
 PROGRESS_FILE = os.path.join(BASE_DIR, 'mo_scraper_county_progress.txt')
+STATE_FILE = os.path.join(BASE_DIR, 'mo_scraper_state.json')
+BLOCK_CHECK_INTERVAL = int(os.environ.get('MO_SCRAPER_BLOCK_CHECK_INTERVAL', '30'))
+MAX_BLOCK_WAIT_MINUTES = int(os.environ.get('MO_SCRAPER_MAX_BLOCK_WAIT', '10'))
 PAGE_LOAD_TIMEOUT = int(os.environ.get('MO_SCRAPER_PAGE_LOAD_TIMEOUT', '180'))
 NAV_RETRY_ATTEMPTS = int(os.environ.get('MO_SCRAPER_NAV_RETRIES', '5'))
 NAV_RETRY_WAIT_SECONDS = int(os.environ.get('MO_SCRAPER_NAV_RETRY_WAIT', '10'))
@@ -69,6 +72,88 @@ def is_debugger_port_reachable(address: str, timeout: float = 3.0) -> bool:
             return True
     except Exception:
         return False
+
+
+def save_scraping_state(county, date, county_index=None, total_counties=None):
+    """Save current scraping state to allow resume after block."""
+    state = {
+        'current_county': county,
+        'current_date': date,
+        'county_index': county_index,
+        'total_counties': total_counties,
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'block_detected': True
+    }
+    try:
+        with open(STATE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(state, f, indent=2)
+        print(f"[STATE] Saved scraping state: {county} @ {date}")
+    except Exception as e:
+        print(f"[WARN] Failed to save state: {e}")
+
+
+def load_scraping_state():
+    """Load saved scraping state if available."""
+    if not os.path.exists(STATE_FILE):
+        return None
+    try:
+        with open(STATE_FILE, 'r', encoding='utf-8') as f:
+            state = json.load(f)
+        print(f"[STATE] Loaded saved state: {state.get('current_county')} @ {state.get('current_date')}")
+        return state
+    except Exception as e:
+        print(f"[WARN] Failed to load state: {e}")
+        return None
+
+
+def clear_scraping_state():
+    """Clear saved state after successful completion."""
+    if os.path.exists(STATE_FILE):
+        try:
+            os.remove(STATE_FILE)
+            print("[STATE] Cleared saved state")
+        except Exception as e:
+            print(f"[WARN] Failed to clear state: {e}")
+
+
+def is_block_page(page_source):
+    """Check if page source contains block page patterns."""
+    page_lower = page_source.lower()
+    return any(pattern in page_lower for pattern in BLOCK_PAGE_PATTERNS)
+
+
+def wait_for_block_clear(driver, wait, max_wait_minutes=MAX_BLOCK_WAIT_MINUTES):
+    """Wait for Cloudflare block to clear by polling the page.
+    
+    Returns True if block cleared, False if timeout.
+    """
+    print(f"[BLOCK] Detected Cloudflare block. Waiting up to {max_wait_minutes} minutes for clearance...")
+    print("[BLOCK] Please complete any challenges in the connected browser.")
+    
+    url = "https://www.courts.mo.gov/casenet/filingDateSearch.do?newSearch=Y"
+    start_time = time.time()
+    max_wait_seconds = max_wait_minutes * 60
+    
+    while time.time() - start_time < max_wait_seconds:
+        try:
+            driver.get(url)
+            time.sleep(5)
+            page_source = driver.page_source.lower()
+            
+            if not is_block_page(page_source):
+                print("[BLOCK] Block cleared! Resuming scraping...")
+                return True
+            
+            elapsed = int((time.time() - start_time) / 60)
+            print(f"[BLOCK] Still blocked... ({elapsed} min elapsed, checking again in {BLOCK_CHECK_INTERVAL}s)")
+            time.sleep(BLOCK_CHECK_INTERVAL)
+            
+        except Exception as e:
+            print(f"[BLOCK] Error checking block status: {e}")
+            time.sleep(BLOCK_CHECK_INTERVAL)
+    
+    print(f"[BLOCK] Timeout: Block not cleared after {max_wait_minutes} minutes")
+    return False
 
 
 def normalize_case_type(value: str) -> str:
@@ -843,8 +928,19 @@ def scrape_court_cases_and_parties(
                 except TimeoutException as timeout_exc:
                     page_source = driver.page_source
                     if is_block_page(page_source):
-                        print("[WARN] Potential block page detected. Waiting 15 seconds before retry.")
-                        time.sleep(15)
+                        print("[BLOCK] Block page detected during form load!")
+                        # Save state and wait for user to re-authenticate
+                        county_idx = counties_to_scrape.index(county) if county in counties_to_scrape else None
+                        save_scraping_state(county, county_start_date, county_idx, len(counties_to_scrape))
+                        if wait_for_block_clear(driver, wait):
+                            clear_scraping_state()
+                            # Retry loading the form after block cleared
+                            continue
+                        else:
+                            print(f"[ERROR] Unable to clear block. Exiting.")
+                            driver.quit()
+                            session.close()
+                            return
                     else:
                         print(f"[WARN] Search form still loading (attempt {attempt_num}): {timeout_exc}")
                         time.sleep(5)
@@ -962,8 +1058,42 @@ def scrape_court_cases_and_parties(
                         break
             except TimeoutException as e:
                 print(f"[TIMEOUT] Element not found for {county_start_date}: {e}")
+                # Check if this is a block page
+                try:
+                    page_source = driver.page_source
+                    if is_block_page(page_source):
+                        print(f"[BLOCK] Block detected during case extraction!")
+                        county_idx = counties_to_scrape.index(county) if county in counties_to_scrape else None
+                        save_scraping_state(county, county_start_date, county_idx, len(counties_to_scrape))
+                        if wait_for_block_clear(driver, wait):
+                            clear_scraping_state()
+                            continue  # Retry the same date
+                        else:
+                            print(f"[ERROR] Unable to clear block. Exiting.")
+                            driver.quit()
+                            session.close()
+                            return
+                except:
+                    pass
             except Exception as e:
                 print(f"[ERROR] Unexpected error for {county_start_date}: {e}")
+                # Check if this is a block page
+                try:
+                    page_source = driver.page_source
+                    if is_block_page(page_source):
+                        print(f"[BLOCK] Block detected during case extraction!")
+                        county_idx = counties_to_scrape.index(county) if county in counties_to_scrape else None
+                        save_scraping_state(county, county_start_date, county_idx, len(counties_to_scrape))
+                        if wait_for_block_clear(driver, wait):
+                            clear_scraping_state()
+                            continue  # Retry the same date
+                        else:
+                            print(f"[ERROR] Unable to clear block. Exiting.")
+                            driver.quit()
+                            session.close()
+                            return
+                except:
+                    pass
             if len(extracted_cases) > 0:
                 consecutive_no_cases = 0
                 print(f"Found {len(extracted_cases)} cases for {county_start_date}")
@@ -1056,6 +1186,7 @@ def scrape_court_cases_and_parties(
 
     session.close()
     driver.quit()
+    clear_scraping_state()  # Clear any saved state on successful completion
     if county_name.lower() == "all" and all_counties_completed and os.path.exists(PROGRESS_FILE):
         try:
             os.remove(PROGRESS_FILE)

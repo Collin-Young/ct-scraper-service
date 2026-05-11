@@ -1,4 +1,4 @@
-from selenium import webdriver
+﻿from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -9,11 +9,15 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 import pandas as pd
 import time
 import os
+import random
+import shutil
+import tempfile
 import uuid
 from datetime import datetime, timedelta
 import json
 import sys
 import base64
+import socket
 from urllib.parse import urlparse
 from mo_scraper.database import init_db, get_session
 from mo_scraper.models import Case, Party
@@ -32,8 +36,22 @@ BLOCK_PAGE_PATTERNS = (
     'just a moment',
     'attention required',
     'enable javascript to use',
-    'access denied'
+    'access denied',
+    'missouri judicial website',
+    'site data scraper',
+    'case.net'
 )
+
+
+def is_debugger_port_reachable(address: str, timeout: float = 3.0) -> bool:
+    try:
+        host, port_text = address.split(':', 1)
+        port = int(port_text)
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
 
 def normalize_case_type(value: str) -> str:
     """Normalize case type strings for reliable comparisons."""
@@ -106,6 +124,26 @@ ALLOWED_PARTY_CASE_TYPES_NORMALIZED = {
 }
 
 
+def prepare_profile_dir(profile_dir: str) -> str:
+    if not os.path.exists(profile_dir):
+        raise ValueError(f"Chrome profile directory does not exist: {profile_dir}")
+    copy_profile = os.environ.get('MO_SCRAPER_PROFILE_COPY', 'true').lower() in ('1', 'true', 'yes')
+    if not copy_profile:
+        return profile_dir
+    temp_dir = tempfile.mkdtemp(prefix='chrome_profile_copy_')
+    shutil.copytree(profile_dir, temp_dir, dirs_exist_ok=True)
+    print(f"[DEBUG] Copied Chrome profile from {profile_dir} to {temp_dir}")
+    return temp_dir
+
+
+def human_delay(min_seconds: float | None = None, max_seconds: float | None = None) -> None:
+    lower = float(os.environ.get('MO_SCRAPER_HUMAN_DELAY_MIN', '1.0')) if min_seconds is None else min_seconds
+    upper = float(os.environ.get('MO_SCRAPER_HUMAN_DELAY_MAX', '2.5')) if max_seconds is None else max_seconds
+    if upper < lower:
+        upper = lower
+    time.sleep(random.uniform(lower, upper))
+
+
 def get_driver(headless):
     chrome_options = Options()
     chrome_options.add_argument('--no-sandbox')
@@ -115,13 +153,22 @@ def get_driver(headless):
     chrome_options.add_argument('--disable-software-rasterizer')
     chrome_options.add_argument('--lang=en-US')
     chrome_options.add_argument('--window-size=1920,1080')
-    chrome_options.add_argument(
-        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-        'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    chrome_options.add_argument('--disable-popup-blocking')
+    chrome_options.add_argument('--disable-background-networking')
+    chrome_options.add_argument('--disable-sync')
+    chrome_options.add_argument('--disable-default-apps')
+    user_agent = os.environ.get(
+        'MO_SCRAPER_USER_AGENT',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/125.0.0.0 Safari/537.36'
     )
+    chrome_options.add_argument(f'--user-agent={user_agent}')
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-    chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
-    chrome_options.add_experimental_option('useAutomationExtension', False)
+    remote_debug_port = os.environ.get('MO_SCRAPER_REMOTE_DEBUGGING_PORT')
+    if not remote_debug_port:
+        chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
 
     def first_existing(paths):
         for candidate in paths:
@@ -153,12 +200,22 @@ def get_driver(headless):
         print(f"[DEBUG] Routing traffic through proxy: {display_proxy}")
 
     headless_flag = headless.lower() == 'headless'
+    if remote_debug_port:
+        debugger_address = f'127.0.0.1:{remote_debug_port}'
+        if not is_debugger_port_reachable(debugger_address):
+            raise RuntimeError(
+                f"MO_SCRAPER_REMOTE_DEBUGGING_PORT={remote_debug_port} set, "
+                f"but Chrome is not reachable at {debugger_address}. "
+                "Start Chrome with --remote-debugging-port=9222 and ensure the browser is running."
+            )
+        chrome_options.debugger_address = debugger_address
+        print(f"[DEBUG] Connecting to existing Chrome via remote debugger at {debugger_address}")
     forced_profile_dir = os.environ.get('MO_SCRAPER_PROFILE_DIR')
-    if forced_profile_dir:
-        user_data_dir = forced_profile_dir
+    if forced_profile_dir and not remote_debug_port:
+        user_data_dir = prepare_profile_dir(forced_profile_dir)
         chrome_options.add_argument(f'--user-data-dir={user_data_dir}')
         print(f"[DEBUG] Using supplied user data dir: {user_data_dir}")
-    elif headless_flag:
+    elif headless_flag and not remote_debug_port:
         unique_token = f"{os.getpid()}_{int(time.time())}_{uuid.uuid4().hex}"
         user_data_dir = f"/tmp/chrome_profile_{unique_token}"
         chrome_options.add_argument(f'--user-data-dir={user_data_dir}')
@@ -192,7 +249,10 @@ def get_driver(headless):
     else:
         service = Service()
 
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    if remote_debug_port:
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+    else:
+        driver = webdriver.Chrome(service=service, options=chrome_options)
     if proxy_auth_header:
         driver.execute_cdp_cmd('Network.enable', {})
         driver.execute_cdp_cmd('Network.setExtraHTTPHeaders', {'headers': {'Proxy-Authorization': proxy_auth_header}})
@@ -215,6 +275,10 @@ def load_url_with_retries(driver, url, label, retries=NAV_RETRY_ATTEMPTS, wait_s
     for attempt in range(1, retries + 1):
         try:
             driver.get(url)
+            if is_block_page(driver.page_source):
+                print(f"[BLOCK] Detected a bot-block page after loading {label}.")
+                dump_debug_artifacts(driver, f"blocked_{label}")
+                return False
             return True
         except TimeoutException as exc:
             print(f"[TIMEOUT] {label} attempt {attempt}/{retries}: {exc}")
@@ -479,7 +543,7 @@ def scrape_court_cases_and_parties(
                 else:
                     print(f"[DEBUG] Reloading search form (attempt {attempt_num})")
                 if not load_url_with_retries(driver, url, f"search_form_{form_label}_attempt{attempt_num}"):
-                    time.sleep(5)
+                    human_delay(2.0, 4.0)
                     continue
                 try:
                     ensure_search_form_ready(driver, wait, f"{form_label}_attempt{attempt_num}")
@@ -509,11 +573,11 @@ def scrape_court_cases_and_parties(
                         Select(driver.find_element(By.ID, "courtCode")).select_by_visible_text(county)
                         select_success = True
                         print("[DEBUG] County selected")
-                        time.sleep(2)
+                        human_delay(1.5, 2.5)
                         break
                     except (NoSuchElementException, StaleElementReferenceException) as select_error:
                         print(f"[WARN] Retrying county selection ({select_attempt + 1}/3): {select_error}")
-                        time.sleep(2)
+                        human_delay(1.4, 2.2)
                 if not select_success:
                     print(f"[ERROR] Unable to select county {county}.")
                     dump_debug_artifacts(driver, f"county_select_{form_label}")
@@ -527,7 +591,7 @@ def scrape_court_cases_and_parties(
                 print(f"[DEBUG] Readonly after removal: {date_input.get_attribute('readonly')}")
 
                 driver.execute_script("arguments[0].click();", date_input)
-                time.sleep(1)
+                human_delay(1.0, 1.5)
                 print("[DEBUG] Clicked date input to open calendar")
 
                 try:
@@ -538,7 +602,7 @@ def scrape_court_cases_and_parties(
 
                 date_input.clear()
                 date_input.send_keys(county_start_date)
-                time.sleep(1)
+                human_delay(0.8, 1.3)
                 print(f"[DEBUG] Sent keys: {county_start_date}")
                 print(f"[DEBUG] Input value after send_keys: {date_input.get_attribute('value')}")
 

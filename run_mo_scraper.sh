@@ -2,6 +2,10 @@
 # Helper script to run the MO scraper with block detection and auto-resume
 # Usage: ./run_mo_scraper.sh [county] [start_date] [continue]
 
+# Disable proxy until Bright Data KYC is approved
+unset MO_SCRAPER_PROXY
+export MO_SCRAPER_PROXY=""
+
 # Set your Windows PC's IP address here
 WINDOWS_IP="${MO_SCRAPER_REMOTE_DEBUGGING_ADDRESS:-192.168.86.43}"
 REMOTE_PORT="${MO_SCRAPER_REMOTE_DEBUGGING_PORT:-9222}"

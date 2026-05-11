@@ -13,7 +13,7 @@ import random
 import shutil
 import tempfile
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import sys
 import base64
@@ -21,6 +21,13 @@ import socket
 from urllib.parse import urlparse
 from mo_scraper.database import init_db, get_session
 from mo_scraper.models import Case, Party
+
+# Try to import undetected-chromedriver for better bot detection bypass
+try:
+    import undetected_chromedriver as uc
+    UNDETECTED_AVAILABLE = True
+except ImportError:
+    UNDETECTED_AVAILABLE = False
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
@@ -155,36 +162,35 @@ def human_delay(min_seconds: float | None = None, max_seconds: float | None = No
 def simulate_human_behavior(driver):
     """Simulate human-like behavior to avoid bot detection."""
     try:
-        # Random mouse movements
-        actions = webdriver.ActionChains(driver)
-        for _ in range(random.randint(3, 7)):
-            x = random.randint(100, 1000)
-            y = random.randint(100, 700)
-            actions.move_by_offset(x, y).perform()
-            time.sleep(random.uniform(0.1, 0.4))
+        # Get viewport dimensions safely
+        viewport_width = driver.execute_script("return window.innerWidth;")
+        viewport_height = driver.execute_script("return window.innerHeight;")
         
-        # Scroll randomly
-        scroll_amount = random.randint(100, 500)
+        # Random mouse movements within viewport bounds
+        actions = webdriver.ActionChains(driver)
+        for _ in range(random.randint(2, 4)):
+            # Keep movements within viewport, starting from current position
+            x = random.randint(-200, 200)
+            y = random.randint(-150, 150)
+            actions.move_by_offset(x, y).perform()
+            time.sleep(random.uniform(0.1, 0.3))
+        
+        # Scroll randomly (small amounts)
+        scroll_amount = random.randint(50, 200)
         driver.execute_script(f"window.scrollBy(0, {scroll_amount});")
-        time.sleep(random.uniform(0.3, 0.7))
+        time.sleep(random.uniform(0.2, 0.4))
         
         # Scroll back up sometimes
-        if random.random() > 0.4:
-            driver.execute_script(f"window.scrollBy(0, -{random.randint(50, scroll_amount)});")
-            time.sleep(random.uniform(0.2, 0.6))
+        if random.random() > 0.5:
+            driver.execute_script(f"window.scrollBy(0, -{random.randint(30, scroll_amount)});")
+            time.sleep(random.uniform(0.2, 0.4))
         
-        # Random click on empty space (non-interactive)
+        # Move mouse to a random position within viewport
         try:
-            driver.execute_script("""
-                var evt = new MouseEvent('click', {
-                    view: window,
-                    bubbles: true,
-                    cancelable: true,
-                    clientX: arguments[0],
-                    clientY: arguments[1]
-                });
-                document.body.dispatchEvent(evt);
-            """, random.randint(200, 600), random.randint(200, 400))
+            safe_x = random.randint(100, min(800, viewport_width - 100))
+            safe_y = random.randint(100, min(600, viewport_height - 100))
+            actions = webdriver.ActionChains(driver)
+            actions.move_to_element_with_offset(driver.find_element(By.TAG_NAME, "body"), safe_x, safe_y).perform()
         except:
             pass
             
@@ -193,6 +199,37 @@ def simulate_human_behavior(driver):
 
 
 def get_driver(headless):
+    # Use undetected-chromedriver if available (better bot detection bypass)
+    if UNDETECTED_AVAILABLE and not os.environ.get('MO_SCRAPER_REMOTE_DEBUGGING_PORT'):
+        print("[DEBUG] Using undetected-chromedriver for better bot detection bypass")
+        try:
+            uc_options = uc.ChromeOptions()
+            uc_options.add_argument('--no-sandbox')
+            uc_options.add_argument('--disable-dev-shm-usage')
+            uc_options.add_argument('--disable-gpu')
+            uc_options.add_argument('--lang=en-US')
+            uc_options.add_argument('--window-size=1920,1080')
+            
+            headless_flag = headless.lower() == 'headless'
+            if headless_flag:
+                uc_options.add_argument('--headless=new')
+                print('Running in headless mode.')
+            else:
+                print('Running in non-headless mode.')
+            
+            chromium_binary = os.environ.get('MO_SCRAPER_CHROMIUM_BINARY')
+            if chromium_binary and os.path.exists(chromium_binary):
+                uc_options.binary_location = chromium_binary
+                print(f"[DEBUG] Using Chromium binary: {chromium_binary}")
+            
+            driver = uc.Chrome(options=uc_options, version_main=None)
+            driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
+            return driver
+        except Exception as e:
+            print(f"[WARN] Failed to use undetected-chromedriver: {e}. Falling back to regular Chrome.")
+    
+    # Fallback to regular Chrome with anti-detection measures
+    print("[DEBUG] Using regular Chrome with anti-detection measures")
     chrome_options = Options()
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
@@ -517,7 +554,7 @@ def scrape_party_details(driver, url):
 def dump_debug_artifacts(driver, label):
     try:
         os.makedirs(DEBUG_DIR, exist_ok=True)
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         base_name = f"{timestamp}_{label}"
         screenshot_path = os.path.join(DEBUG_DIR, f"{base_name}.png")
         html_path = os.path.join(DEBUG_DIR, f"{base_name}.html")

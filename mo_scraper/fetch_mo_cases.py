@@ -653,18 +653,26 @@ def load_url_with_retries(driver, url, label, retries=NAV_RETRY_ATTEMPTS, wait_s
     return False
 
 def scrape_party_details(driver, url):
+    """Scrape party details with retry logic."""
     try:
         print(f"[SEARCH] Accessing URL: {url}")
         case_label = "party_page"
         if "caseNumber=" in url:
             case_label = url.split("caseNumber=", 1)[1].split("&", 1)[0]
-        if not load_url_with_retries(driver, url, f"party_page_{case_label}"):
-            return []
-
-        WebDriverWait(driver, DEFAULT_WAIT_SECONDS).until(
-            EC.presence_of_element_located((By.ID, "mainContent"))
-        )
-
+        
+        # Load the page with retries
+        for attempt in range(3):
+            if load_url_with_retries(driver, url, f"party_page_{case_label}_attempt{attempt+1}"):
+                break
+            if attempt == 2:
+                print(f"[ERROR] Failed to load party page after 3 attempts")
+                return []
+            human_delay(2.0, 4.0)
+        
+        # Wait for page to be ready
+        wait = WebDriverWait(driver, DEFAULT_WAIT_SECONDS)
+        wait.until(EC.presence_of_element_located((By.ID, "mainContent")))
+        
         # Kill transitions for rendering stability
         driver.execute_script("""
             var css = '* { -webkit-transition: none !important; transition: none !important; }';
@@ -673,31 +681,58 @@ def scrape_party_details(driver, url):
             style.appendChild(document.createTextNode(css));
             document.head.appendChild(style);
         """)
-
-        # Click the tab
-        parties_tab = WebDriverWait(driver, DEFAULT_WAIT_SECONDS).until(
-            EC.element_to_be_clickable((By.LINK_TEXT, "Parties & Attorneys"))
-        )
-        parties_tab.click()
-
-        # Wait until a party card div appears inside the container
-        WebDriverWait(driver, DEFAULT_WAIT_SECONDS).until(
-            EC.presence_of_element_located((By.XPATH, "//*[@id='actualPartytData']/div"))
-        )
-        print("[SUCCESS] Party cards loaded successfully")
-
-        party_data_container = driver.find_element(By.ID, "actualPartytData")
-        cards = party_data_container.find_elements(By.XPATH, "./div")
-        if not cards:
-            print("[ERROR] No party cards found.")
+        
+        # Click the "Parties & Attorneys" tab with retry
+        for tab_attempt in range(3):
+            try:
+                parties_tab = wait.until(
+                    EC.element_to_be_clickable((By.LINK_TEXT, "Parties & Attorneys"))
+                )
+                parties_tab.click()
+                print("[DEBUG] Clicked Parties & Attorneys tab")
+                human_delay(1.0, 2.0)
+                break
+            except Exception as tab_error:
+                print(f"[WARN] Tab click attempt {tab_attempt+1} failed: {tab_error}")
+                if tab_attempt == 2:
+                    print("[ERROR] Failed to click Parties tab")
+                    return []
+                human_delay(1.0, 2.0)
+        
+        # Wait for party data to load with extended timeout
+        print("[DEBUG] Waiting for party cards to load...")
+        for load_attempt in range(5):
+            try:
+                # Wait for the container
+                wait.until(EC.presence_of_element_located((By.ID, "actualPartytData")))
+                
+                # Check if party cards are present
+                party_data_container = driver.find_element(By.ID, "actualPartytData")
+                cards = party_data_container.find_elements(By.XPATH, "./div")
+                
+                if cards:
+                    print(f"[SUCCESS] Found {len(cards)} party cards")
+                    break
+                else:
+                    print(f"[DEBUG] No party cards yet, waiting... (attempt {load_attempt+1}/5)")
+                    time.sleep(2)
+            except Exception as load_error:
+                print(f"[DEBUG] Waiting for party data... (attempt {load_attempt+1}/5): {load_error}")
+                time.sleep(2)
+        else:
+            print("[ERROR] Party cards did not load after 5 attempts")
+            dump_debug_artifacts(driver, f"party_cards_timeout_{case_label}")
             return []
-
+        
+        # Extract party data
         refined_data = []
+        cards = party_data_container.find_elements(By.XPATH, "./div")
+        
         for idx, card in enumerate(cards, start=1):
             try:
                 attorney_present = False
                 party_container = card
-
+                
                 nested_containers = card.find_elements(By.XPATH, "./div")
                 if nested_containers:
                     row_container = card.find_element(By.XPATH, "./div")
@@ -707,11 +742,11 @@ def scrape_party_details(driver, url):
                         attorney_present = True
                     elif child_divs:
                         party_container = child_divs[0]
-
+                
                 party_name = party_container.find_element(By.XPATH, "./p[1]/span[1]").text.strip()
                 party_type = party_container.find_element(By.XPATH, "./p[1]/span[2]").text.strip()
                 party_address = party_container.find_element(By.XPATH, "./p[2]").text.strip()
-
+                
                 refined_data.append({
                     "Name": party_name,
                     "Party Role": party_type,
@@ -720,11 +755,12 @@ def scrape_party_details(driver, url):
                 })
             except Exception as e:
                 print(f"[WARNING] Error extracting details from card {idx}: {e}")
-
+        
         return refined_data
-
+    
     except Exception as e:
         print(f"[ERROR] scraping URL {url}: {e}")
+        dump_debug_artifacts(driver, f"party_scrape_error_{case_label}")
         return []
 
 
@@ -987,41 +1023,16 @@ def scrape_court_cases_and_parties(
 
                 date_input = wait.until(EC.presence_of_element_located((By.ID, "datepicker")))
                 print(f"[DEBUG] Date input found with ID: {date_input.get_attribute('id')}")
-                print(f"[DEBUG] Initial readonly attribute: {date_input.get_attribute('readonly')}")
-
+                
+                # Use JavaScript to bypass calendar picker entirely
                 driver.execute_script("arguments[0].removeAttribute('readonly')", date_input)
-                print(f"[DEBUG] Readonly after removal: {date_input.get_attribute('readonly')}")
-
-                driver.execute_script("arguments[0].click();", date_input)
-                human_delay(1.0, 1.5)
-                print("[DEBUG] Clicked date input to open calendar")
-
-                try:
-                    picker_holder = driver.find_element(By.CSS_SELECTOR, ".picker__holder")
-                    print(f"[DEBUG] Picker holder visible after click: {picker_holder.is_displayed()}")
-                except Exception:
-                    print("[DEBUG] Picker holder not found after click")
-
-                date_input.clear()
-                date_input.send_keys(county_start_date)
-                human_delay(0.8, 1.3)
-                print(f"[DEBUG] Sent keys: {county_start_date}")
-                print(f"[DEBUG] Input value after send_keys: {date_input.get_attribute('value')}")
-
-                driver.find_element(By.TAG_NAME, "body").click()
-                print("[DEBUG] Clicked body to close any picker")
-                print("[DEBUG] Date entered")
-
-                try:
-                    picker_holder = driver.find_element(By.CSS_SELECTOR, ".picker__holder")
-                    print(f"[DEBUG] Picker holder visible after input: {picker_holder.is_displayed()}")
-                except Exception:
-                    print("[DEBUG] Picker holder not found after input")
-
-                try:
-                    driver.execute_script("document.querySelector('.picker__holder').style.display='none';")
-                except Exception:
-                    pass
+                driver.execute_script("arguments[0].value = ''", date_input)
+                driver.execute_script(f"arguments[0].value = '{county_start_date}'", date_input)
+                print(f"[DEBUG] Date set via JavaScript: {date_input.get_attribute('value')}")
+                
+                # Force the change event to trigger
+                driver.execute_script("arguments[0].dispatchEvent(new Event('change', { bubbles: true }))", date_input)
+                print("[DEBUG] Date entered (bypassing calendar picker)")
 
                 find_button = driver.find_element(By.ID, "findButton")
                 driver.execute_script("arguments[0].scrollIntoView();", find_button)
